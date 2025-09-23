@@ -5,11 +5,12 @@ import os
 import sys
 
 DATASETS_FOLDER = os.environ["DATA_HOME"]
+HF_HOME = os.environ["HF_HOME"]
 
 from transformers import AutoModelForCausalLM
 
-#model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.1-8B-Instruct")
-#model.save_pretrained("/u/lucmon/lucmon/hf_home/hub/Llama-3.1-8B-Instruct", safe_serialization=True)
+#model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
+#model.save_pretrained(HF_HOME+"hub/Llama-3.2-1B-Instruct", safe_serialization=True)
 #sys.exit()
 
 from transformers import pipeline
@@ -17,17 +18,18 @@ from transformers import pipeline
 MODEL_FOLDER="/u/lucmon/lucmon/hf_home/hub/" #models--meta-llama--
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8B-Instruct")
-model = AutoModelForCausalLM.from_pretrained(MODEL_FOLDER+"Llama-3.1-8B-Instruct")
+tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
+model = AutoModelForCausalLM.from_pretrained(HF_HOME+"hub/Llama-3.2-1B-Instruct")
 pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
 
 def get_description_from_review(review):
     prompt = "Given the product review, generate a neutral factual description of the product. \
-            Be concise. Don't contain any sentiments. Review: {}".format(review)
+            Be concise. Don't contain any sentiments. Start the output without any prefixes. Review: {}".format(review)
     messages = [
         {"role": "user", "content": prompt},
     ]
-    response = pipe(messages)
+    response = pipe(messages, max_new_tokens=512)
+
     return response[0]['generated_text'][1]['content']
 
 categories = [
@@ -72,8 +74,8 @@ def scale_rating(rating):
 alphas = [0, 0.25, 0.5, 0.75, 1.0]
 
 records = []
-for category_name in categories[:2]:
-    print(category_name)
+for category_name in categories:
+    print(category_name, flush=True)
     dataset = load_dataset("McAuley-Lab/Amazon-Reviews-2023", "raw_review_{}".format(category_name), trust_remote_code=True)
     meta_dataset = load_dataset("McAuley-Lab/Amazon-Reviews-2023", "raw_meta_{}".format(category_name), split="full", trust_remote_code=True)
     product_metadata_description = {}
@@ -87,7 +89,7 @@ for category_name in categories[:2]:
             num_description += 1
             description = meta['description']
             product_metadata_description[parent_asin] = [title, category, description]
-    print("number of descriptions: ", num_description)
+    print("number of descriptions: {}".format(num_description), flush=True)
 
     alpha_cnt = {0.0: 0, 0.25: 0, 0.5: 0, 0.75: 0, 1.0: 0}
     for review_data in dataset["full"]:
@@ -98,7 +100,7 @@ for category_name in categories[:2]:
             if len(review_text.split()) < 100 or len(review_text.split()) > 500:
                 continue
             alpha_cnt[rating] += 1
-    print(alpha_cnt)
+    print(alpha_cnt, flush=True)
     min_alpha_len = min([alpha_cnt[alpha] for alpha in alphas])
     
     target_lens = []
@@ -114,7 +116,7 @@ for category_name in categories[:2]:
         if parent_asin in product_metadata_description:
             if len(review_text.split()) < 100 or len(review_text.split()) > 500:
                 continue
-            description = " " #get_description_from_review(review_text)
+            #description = get_description_from_review(review_text)
             #print("=========")
             #print(review_text)
             #print(description)
@@ -122,19 +124,27 @@ for category_name in categories[:2]:
             product = product_metadata_description[parent_asin]
             records_alpha[rating].append({
                 "alpha": rating,
-                "input": "Write a review for the product based on the title, category and description. Title: {}. Category: {}. Description: {}".format(product[0], product[1], description),
+                "input": "Write a review for the product based on the title, category and description. Title: {}. Category: {}. ".format(product[0], product[1]),
                 "target": review_text,
             })
             target_lens.append(len(review_text.split()))
         #if cnt > 20:
         #    sys.exit()
-    print([len(records_alpha[alpha]) for alpha in alphas])    
+    print([len(records_alpha[alpha]) for alpha in alphas], flush=True) 
+
+    #add description based on review_text
+    for alpha in alphas:
+        for record in records_alpha[alpha]:
+            review_text = record["target"]
+            description = get_description_from_review(review_text)
+            record["input"] = record["input"] + "Description: {}".format(description)
+
     #min_alpha_len = min([len(records_alpha[alpha]) for alpha in alphas])
     #for alpha in alphas:
     #    records += records_alpha[rating][:min_alpha_len]
     for alpha in alphas:
         records += records_alpha[alpha]
-    print("number of records in the category: ", len(records))
+    print("number of records in the category: {}".format(len(records)), flush=True)
 
     random.shuffle(records)
     record_size = len(records)
@@ -149,5 +159,5 @@ for category_name in categories[:2]:
         "test": test_dataset
     })
 
-    dataset_dict.save_to_disk(DATASETS_FOLDER+"/amazon_review/multi_alpha_dataset")
+    dataset_dict.save_to_disk(DATASETS_FOLDER+"/amazon_review/multi_alpha_dataset_2")
     
