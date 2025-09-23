@@ -90,6 +90,7 @@ for category_name in categories[:2]:
     print("number of descriptions: ", num_description)
 
     
+    
     target_lens = []
     records_alpha = {0.0: [], 0.25: [], 0.5: [], 0.75: [], 1.0: []}
     cnt = 0
