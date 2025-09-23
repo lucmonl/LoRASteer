@@ -98,8 +98,10 @@ def get_model_and_tokenizer(
         num_new_tokens=reasoning_tokens.shape[0],
     )
     model.patch_embeddings()
-
+    #print("after LlamaSquadModel.from_pretrained")
+    #print(str(adapter_name))
     if adapter_name is not None:
+        #print("adapter_name is not None")
         if hasattr(model, "new_embedding"):
             checkpoint = os.path.join(adapter_name, "embedding.pt")
             if not os.path.exists(checkpoint):
@@ -186,12 +188,12 @@ def run(
         yield "".join(outputs)
 
 
-def extract_answer(text):
+def extract_review(text):
     text = text[text.find("{") :]
     text = text[: text.find("}") + 1]
     try:
         # JSON5 is a little less picky than JSON
-        answer = json5.loads(text)["answer"]
+        answer = json5.loads(text)["review"]
     except:
         answer = None
     return answer
@@ -206,7 +208,7 @@ class StopAfterTokens(StoppingCriteria):
         return input_ids[0][-len(self.tokens)] == self.tokens
 
 
-def get_answer(messages, pipeline, num_beams=None, force_answer=True):
+def get_answer(messages, alpha, pipeline, num_beams=None, force_answer=True):
     assistant_messages = [
         message
         for message in range(len(messages))
@@ -242,6 +244,7 @@ def get_answer(messages, pipeline, num_beams=None, force_answer=True):
 
         response = pipeline(
             prompt,
+            alpha=alpha,
             do_sample=False,
             num_beams=num_beams,
             num_return_sequences=1,
@@ -253,7 +256,7 @@ def get_answer(messages, pipeline, num_beams=None, force_answer=True):
         response = response[len(prompt) :].strip()
         messages[assistant_message] = {"role": "assistant", "content": force + response}
 
-    return extract_answer(response), response
+    return extract_review(response), response
 
 
 class LlamaSquadCheckpointCallback(TrainerCallback):
@@ -283,7 +286,9 @@ class LlamaSquadSFTTrainer(SFTTrainer):
         *args,
         **kwargs,
     ):
+        print("before SFTTrainer init")
         super().__init__(*args, **kwargs)
+        print("starts LlamaSquadSFTTrainer init")
         self.answer_start_tokens = answer_start_tokens
         self.answer_end_tokens = answer_end_tokens
         self.num_reasoning_tokens = num_reasoning_tokens
@@ -328,6 +333,7 @@ class LlamaSquadSFTTrainer(SFTTrainer):
         answer_start_tokens = self.answer_start_tokens.to(self.model.device)
         answer_end_tokens = self.answer_end_tokens.to(self.model.device)
         for item in tqdm(self.eval_dataset, desc="Evaluating"):
+            alpha = item["alpha"]
             input_ids = torch.tensor(item["input_ids"]).to(self.model.device)
             window = input_ids.unfold(0, answer_start_tokens.shape[0], 1)
             answer_starts = (
@@ -346,7 +352,7 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                 answer_end = answer_ends[answer_ends > answer_start][0] + offset
                 answer_start = answer_start + offset
 
-                answers = extract_answer(
+                answers = extract_review(
                     self.tokenizer.decode(
                         input_ids[answer_start:], skip_special_tokens=True
                     )
@@ -354,6 +360,7 @@ class LlamaSquadSFTTrainer(SFTTrainer):
 
                 output = self.model.generate(
                     input_ids=input_ids[:answer_start].unsqueeze(0),
+                    alpha=alpha,
                     attention_mask=torch.ones_like(input_ids[:answer_start]).unsqueeze(
                         0
                     ),
@@ -366,7 +373,7 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                     pad_token_id=self.tokenizer.pad_token_id,
                 )
 
-                model_answer = extract_answer(
+                model_answer = extract_review(
                     self.tokenizer.decode(
                         output[0, answer_start - 1 :], skip_special_tokens=True
                     )
@@ -390,7 +397,7 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                 has_answer_correct += correct
             else:
                 no_answer_correct += correct
-
+        """
         exact_match /= len(self.eval_dataset)
         has_answer_correct /= has_answer
         no_answer_correct = (
@@ -409,4 +416,10 @@ class LlamaSquadSFTTrainer(SFTTrainer):
             hook_handle.remove()
 
         self.log(metrics)
+        """
+        metrics = {
+            "eval_exact_match": 0,
+            "eval_has_answer_correct": 0,
+            "eval_no_answer_correct": 0,
+        }
         return metrics

@@ -1,7 +1,8 @@
 from typing import Optional
 
 import torch
-from transformers import DataCollatorForLanguageModeling, LlamaConfig, LlamaForCausalLM
+from transformers import DataCollatorForLanguageModeling, LlamaConfig #, LlamaForCausalLM
+from arch.steer_model import LlamaForCausalLM
 
 
 class LlamaSquadDataCollator(DataCollatorForLanguageModeling):
@@ -17,13 +18,15 @@ class LlamaSquadDataCollator(DataCollatorForLanguageModeling):
         self.answer_start_tokens = answer_start_tokens
         self.answer_end_tokens = answer_end_tokens
         self.reasoning_tokens = reasoning_tokens
+        self.tokenizer = kwargs["tokenizer"]
 
     def __call__(self, examples):
         batch = super().__call__(examples)
-
+        #print("batch keys", batch.keys())
         for i, label in enumerate(batch["labels"]):
             # Only apply cross entropy loss to the answer part of the labels
             mask = torch.ones_like(label)
+            #print("label shape", label.shape)
             window = label.unfold(0, self.answer_start_tokens.shape[0], 1)
             answer_starts = (window == self.answer_start_tokens).all(dim=1).nonzero()[
                 :, 0
@@ -32,6 +35,8 @@ class LlamaSquadDataCollator(DataCollatorForLanguageModeling):
             answer_ends = (window == self.answer_end_tokens).all(dim=1).nonzero()[
                 :, 0
             ] + self.answer_end_tokens.shape[0]
+            #print("starts:", answer_starts)
+            #print("ends:", answer_ends)
             for answer_start in answer_starts:
                 mask[answer_start : answer_ends[answer_ends > answer_start][0]] = 0
             label = label.where(mask == 0, -100)

@@ -5,9 +5,11 @@ from types import SimpleNamespace
 from typing import Optional
 
 import yaml
-from datasets import DatasetDict, load_dataset
+from datasets import DatasetDict, load_dataset, load_from_disk
 from transformers import HfArgumentParser
 
+import os
+DATASETS_FOLDER = os.environ["DATA_HOME"]
 
 @dataclass
 class ScriptArguments:
@@ -25,7 +27,7 @@ class ScriptArguments:
     )
 
 
-config = SimpleNamespace(**yaml.safe_load(open("config.yaml")))
+config = SimpleNamespace(**yaml.safe_load(open("../config.yaml")))
 # Llama 3 has several <|reserved_special_token_...|> that could be used instead
 REASONING = (
     "".join([f"<blah_{i}>" for i in range(config.num_reasoning_tokens)])
@@ -40,41 +42,42 @@ def is_exact_match(model_answer, answers):
 
 
 def get_single_turn_prompt_and_response(item, all_answers=False):
-    context = item["context"]
-    question = item["question"]
-    answers = item["answers"]["text"]
-    if len(answers) == 0:
-        answers = [NO_RESPONSE]
-    if not all_answers:
-        answers = answers[0]
-    answers = json.dumps(answers)
+    #context = item["context"]
+    #question = item["question"]
+    #answers = item["answers"]["text"]
+
+    content = item["input"]
+    target = item["target"]
+
+    #if len(answers) == 0:
+    #    answers = [NO_RESPONSE]
+    #if not all_answers:
+    #    answers = answers[0]
+    #answers = json.dumps(answers)
 
     return {
         "messages": [
-            {"role": "system", "content": config.system_prompt},
+            {"role": "system", "content": "You are a helpful assistant."}, #config.system_prompt
             {
                 "role": "user",
                 "content": dedent(
                     f"""\
-                    Extract from the following context the minimal span word for word that best answers the question. Think step by step and explain your reasoning. Then give the answer in JSON format as follows:
+                    {content}. Then give the review in JSON format as follows:
                     ```json
                     {{
-                      "answer": ...
+                      "review": ...
                     }}
                     ```
-                    If the answer is not in the context, the answer should be "{NO_RESPONSE}".
-                    Context: {context}
-                    Question: {question}"""
+                    """
                 ),
             },
             {
                 "role": "assistant",
                 "content": dedent(
                     f"""\
-                    {REASONING}
                     ```json
                     {{
-                      "answer": {answers}
+                      "review": {target}
                     }}
                     ```"""
                 ),
@@ -162,11 +165,14 @@ if __name__ == "__main__":
         "multi_turn": get_multi_turn_prompt_and_response,
     }[script_args.prompt]
 
-    squad_dataset = load_dataset("squad_v2")
+    #squad_dataset = load_dataset("squad_v2")
+    squad_dataset = dataset = load_from_disk(DATASETS_FOLDER + config.dataset_name)
+    """
     dataset = squad_dataset["train"].train_test_split(
         test_size=script_args.validation_ratio,
         seed=script_args.seed,
     )
+    """
     train_dataset = dataset["train"].map(instruction)
     val_dataset = dataset["test"].map(instruction, fn_kwargs={"all_answers": True})
     test_dataset = squad_dataset["validation"].map(
@@ -175,4 +181,5 @@ if __name__ == "__main__":
     dataset = DatasetDict(
         {"train": train_dataset, "val": val_dataset, "test": test_dataset}
     )
-    dataset.save_to_disk(config.dataset_name)
+    print(DATASETS_FOLDER + config.dataset_name + "_llama_3")
+    dataset.save_to_disk(DATASETS_FOLDER + config.dataset_name + "_llama_3")

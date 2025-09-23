@@ -1,8 +1,9 @@
-model_name: meta-llama/Meta-Llama-3-8B-Instruct
+#model_name: meta-llama/Llama-3.1-8B-Instruct #meta-llama/Meta-Llama-3-1B-Instruct #meta-llama/Llama-3.2-1B-Instruct
+model_name: google/gemma-3-4b-it
+#model_name: results/checkpoint-9500
 # model_name: meta-llama/Llama-2-7b-chat-hf
 system_prompt: |
-  You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
-  If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
+  You are a helpful assistant.
 num_reasoning_tokens: 5
 multiple_reasoning_tokens: True
-dataset_name: data/squad_v2
+dataset_name: /amazon_review/multi_alpha_dataset_short_llama_3 #_llama_3 #/amazon_review/llama3_multi_alpha_dataset

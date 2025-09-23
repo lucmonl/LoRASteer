@@ -11,12 +11,15 @@ from datasets import load_from_disk
 from tqdm import tqdm
 from transformers import HfArgumentParser
 
-from create_squad_dataset import is_exact_match
-from model import extract_answer, get_answer, get_model_and_tokenizer
+from create_squad_dataset import is_exact_match, get_single_turn_prompt_and_response
+from model import extract_review, get_answer, get_model_and_tokenizer
 
+import os
+DATASETS_FOLDER = os.environ["DATA_HOME"]
 
 @dataclass
 class ScriptArguments:
+    alpha: float
     tokenizer_name: Optional[str] = field(
         default=None,
     )
@@ -39,11 +42,14 @@ class ScriptArguments:
 
 parser = HfArgumentParser(ScriptArguments)
 script_args = parser.parse_args_into_dataclasses()[0]
-config = SimpleNamespace(**yaml.safe_load(open("config.yaml")))
+config = SimpleNamespace(**yaml.safe_load(open("../eval_config.yaml")))
 
 logger = logging.getLogger("test_llama_squad")
 logger.setLevel(level=logging.DEBUG if script_args.debug else logging.INFO)
 transformers.logging.set_verbosity_error()
+
+print("model ckpt name: ", config.model_name)
+print("generate with alpha: ", script_args.alpha)
 
 model, tokenizer, _ = get_model_and_tokenizer(
     model_name=config.model_name,
@@ -51,6 +57,9 @@ model, tokenizer, _ = get_model_and_tokenizer(
     tokenizer_name=script_args.tokenizer_name,
     quantize=script_args.quantize,
 )
+
+for name, param in model.named_parameters():
+    print(name, param.shape)
 
 pipeline = transformers.pipeline(
     "text-generation",
@@ -67,34 +76,40 @@ with open(script_args.output_csv_file, "w") as file:
             "Correct answers",
             "Model answer",
             "Full response",
-            "Exact match",
         ]
     )
 
-    dataset = load_from_disk(config.dataset_name)["test"]
+    dataset = load_from_disk(DATASETS_FOLDER + config.dataset_name)["test"]
     if script_args.shuffle:
         dataset = dataset.shuffle(seed=script_args.seed)
     if script_args.num_samples is not None:
         dataset = dataset.select(range(script_args.num_samples))
 
-    for _, messages in enumerate(tqdm(dataset["messages"])):
+    #for _, messages in enumerate(tqdm(dataset["messages"])):
+    for _, record in enumerate(tqdm(dataset)):
+        messages = get_single_turn_prompt_and_response(record)["messages"]
         if script_args.skip_samples is not None and _ < script_args.skip_samples:
             continue
 
-        answers = extract_answer(messages[-1]["content"])
+        answers = extract_review(messages[-1]["content"])
         prompt = messages[1]["content"]
         logger.debug("Prompt: %s", prompt)
         logger.debug("Correct answers: %s", answers)
 
         model_answer, full_response = get_answer(
             messages=messages,
+            alpha=script_args.alpha,
             pipeline=pipeline,
             num_beams=script_args.num_beams,
             force_answer=script_args.force_answer,
         )
         logger.debug("Model answer: %s", model_answer)
         logger.debug("Response: %s", full_response)
-        exact_match = is_exact_match(model_answer, answers)
+        print("==============")
+        print(model_answer)
+        print(full_response)
+        """
+        exact_match = is_exact_match(model_answer, answers)"""
 
         writer.writerow(
             [
@@ -102,7 +117,6 @@ with open(script_args.output_csv_file, "w") as file:
                 json.dumps(answers),
                 model_answer,
                 full_response,
-                exact_match,
             ]
         )
         file.flush()

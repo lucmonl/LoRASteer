@@ -20,7 +20,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, List, Union
 
 import torch
 import yaml
@@ -34,6 +34,9 @@ from model import (
     LlamaSquadSFTTrainer,
     get_model_and_tokenizer,
 )
+
+import os
+DATASETS_FOLDER = os.environ["DATA_HOME"]
 
 
 @dataclass
@@ -111,7 +114,7 @@ class ScriptArguments:
         default=10000, metadata={"help": "How many optimizer update steps to take"}
     )
     eval_steps: int = field(
-        default=1000,
+        default=500,
         metadata={"help": "How many steps to take before evaluating model"},
     )
     warmup_ratio: float = field(
@@ -135,7 +138,7 @@ class ScriptArguments:
         metadata={"help": "Merge and push weights after training"},
     )
     output_dir: str = field(
-        default="./results",
+        default="../results/",
         metadata={
             "help": "The output directory where the model predictions and checkpoints will be written."
         },
@@ -145,10 +148,17 @@ class ScriptArguments:
     embedding_only: Optional[bool] = field(default=False)
     embedding_checkpoint: Optional[str] = field(default=None)
 
+    alpha: Optional[str] = field(default="full")
+    #parser.add_argument('--analysis', nargs='+', type=str, help="alpha used for training")
+
+def get_directory(script_args):
+    directory = "../results/{}/{}".format(config.model_name, script_args.alpha)
+    return directory
 
 parser = HfArgumentParser(ScriptArguments)
 script_args = parser.parse_args_into_dataclasses()[0]
-config = SimpleNamespace(**yaml.safe_load(open("config.yaml")))
+config = SimpleNamespace(**yaml.safe_load(open("../config.yaml")))
+script_args.output_dir = get_directory(script_args)
 
 
 def create_and_prepare_model(args):
@@ -204,14 +214,40 @@ training_arguments = TrainingArguments(
     group_by_length=script_args.group_by_length,
     lr_scheduler_type=script_args.lr_scheduler_type,
     lr_scheduler_kwargs=json.loads(script_args.lr_scheduler_kwargs),
-    evaluation_strategy="steps",
+    eval_strategy='steps', #"steps",
     eval_steps=script_args.eval_steps,
+    max_length=2048
 )
 
 model, peft_config, tokenizer, reasoning_tokens = create_and_prepare_model(script_args)
 model.config.use_cache = False
-train_dataset = load_from_disk(config.dataset_name)["train"]
-eval_dataset = load_from_disk(config.dataset_name)["val"]
+train_dataset = load_from_disk(DATASETS_FOLDER + config.dataset_name)["train"]
+eval_dataset = load_from_disk(DATASETS_FOLDER + config.dataset_name)["val"]
+
+#train_dataset = train_dataset.select(range(5))
+eval_dataset = eval_dataset.select(range(50))
+
+"""
+print("viewing dataset")
+for i, item in enumerate(train_dataset):
+    print(i)
+    print(item)
+"""
+
+for label in [0, 0.25, 0.5, 0.75, 1.0]:
+    dataset = train_dataset.filter(lambda example: example["alpha"] == label)
+    print(len(dataset))
+#sys.exit()
+
+if script_args.alpha == "full":
+    pass
+elif script_args.alpha == "binary":
+    train_dataset = train_dataset.filter(lambda example: example["alpha"] in [0, 1.0])
+else:
+    train_dataset = train_dataset.filter(lambda example: example["alpha"] in [float(script_args.alpha)])
+    assert len(train_dataset) > 0
+
+print("dataset_num", len(train_dataset))
 
 # Fix weird overflow issue with fp16 training. (Is this still necessary?)
 tokenizer.padding_side = "right"
@@ -250,16 +286,18 @@ trainer = LlamaSquadSFTTrainer(
     train_dataset=train_dataset,
     eval_dataset=eval_dataset,
     peft_config=peft_config,
-    max_seq_length=script_args.max_seq_length,
-    tokenizer=tokenizer,
+    #tokenizer=tokenizer,
     args=training_arguments,
-    packing=script_args.packing,
+    #packing=script_args.packing,
     data_collator=data_collator,
     formatting_func=lambda items: tokenizer.apply_chat_template(
         items["messages"], tokenize=False
     ),
     callbacks=[LlamaSquadCheckpointCallback(model)],
 )
+
+print("after init trainer")
+print(trainer.train_dataset[0].keys())
 
 if script_args.embedding_only:
     for name, param in model.named_parameters():
