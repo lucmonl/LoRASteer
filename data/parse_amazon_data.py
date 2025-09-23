@@ -72,7 +72,7 @@ def scale_rating(rating):
 alphas = [0, 0.25, 0.5, 0.75, 1.0]
 
 records = []
-for category_name in categories[:2]:
+for category_name in categories:
     print(category_name)
     dataset = load_dataset("McAuley-Lab/Amazon-Reviews-2023", "raw_review_{}".format(category_name), trust_remote_code=True)
     meta_dataset = load_dataset("McAuley-Lab/Amazon-Reviews-2023", "raw_meta_{}".format(category_name), split="full", trust_remote_code=True)
