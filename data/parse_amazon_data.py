@@ -72,7 +72,7 @@ def scale_rating(rating):
 alphas = [0, 0.25, 0.5, 0.75, 1.0]
 
 records = []
-for category_name in categories:
+for category_name in categories[:2]:
     print(category_name)
     dataset = load_dataset("McAuley-Lab/Amazon-Reviews-2023", "raw_review_{}".format(category_name), trust_remote_code=True)
     meta_dataset = load_dataset("McAuley-Lab/Amazon-Reviews-2023", "raw_meta_{}".format(category_name), split="full", trust_remote_code=True)
@@ -93,9 +93,11 @@ for category_name in categories:
     for review_data in dataset["full"]:
         rating = scale_rating(review_data['rating'])
         review_text = review_data['text']
-        if len(review_text.split()) < 100 or len(review_text.split()) > 500:
-            continue
-        alpha_cnt[rating] += 1
+        parent_asin = review_data['parent_asin']
+        if parent_asin in product_metadata_description:
+            if len(review_text.split()) < 100 or len(review_text.split()) > 500:
+                continue
+            alpha_cnt[rating] += 1
     print(alpha_cnt)
     min_alpha_len = min([alpha_cnt[alpha] for alpha in alphas])
     
@@ -112,7 +114,7 @@ for category_name in categories:
         if parent_asin in product_metadata_description:
             if len(review_text.split()) < 100 or len(review_text.split()) > 500:
                 continue
-            description = get_description_from_review(review_text)
+            description = " " #get_description_from_review(review_text)
             #print("=========")
             #print(review_text)
             #print(description)

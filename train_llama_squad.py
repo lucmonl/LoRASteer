@@ -225,7 +225,7 @@ train_dataset = load_from_disk(DATASETS_FOLDER + config.dataset_name)["train"]
 eval_dataset = load_from_disk(DATASETS_FOLDER + config.dataset_name)["val"]
 
 #train_dataset = train_dataset.select(range(5))
-#eval_dataset = eval_dataset.select(range(50))
+eval_dataset = eval_dataset.select(range(50))
 
 """
 print("viewing dataset")
