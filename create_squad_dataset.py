@@ -181,5 +181,8 @@ if __name__ == "__main__":
     dataset = DatasetDict(
         {"train": train_dataset, "val": val_dataset, "test": test_dataset}
     )
-    print(DATASETS_FOLDER + config.dataset_name + "_llama_3")
-    dataset.save_to_disk(DATASETS_FOLDER + config.dataset_name + "_llama_3")
+    #print(DATASETS_FOLDER + config.dataset_name + "_llama_3")
+    #dataset.save_to_disk(DATASETS_FOLDER + config.dataset_name + "_llama_3")
+
+    print(DATASETS_FOLDER + config.dataset_name + "_gemma")
+    dataset.save_to_disk(DATASETS_FOLDER + config.dataset_name + "_gemma")

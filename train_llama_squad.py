@@ -225,7 +225,7 @@ train_dataset = load_from_disk(DATASETS_FOLDER + config.dataset_name)["train"]
 eval_dataset = load_from_disk(DATASETS_FOLDER + config.dataset_name)["val"]
 
 #train_dataset = train_dataset.select(range(5))
-eval_dataset = eval_dataset.select(range(50))
+#eval_dataset = eval_dataset.select(range(50))
 
 """
 print("viewing dataset")
@@ -262,13 +262,20 @@ if "Llama-3" in tokenizer.name_or_path:
     answer_end_tokens = torch.tensor(
         tokenizer.encode("<|eot_id|>", add_special_tokens=False)
     )
-
-else:
-    assert "Llama-2" in tokenizer.name_or_path
+elif "Llama-2" in tokenizer.name_or_path:
     answer_start_tokens = torch.tensor(
         tokenizer.encode("[/INST] ", add_special_tokens=False)
     )
     answer_end_tokens = torch.tensor(tokenizer.encode("</s>", add_special_tokens=False))
+elif "gemma" in tokenizer.name_or_path:
+    answer_start_tokens = torch.tensor(
+        tokenizer.encode(
+            "<start_of_turn>model\n",
+            add_special_tokens=False,
+        )
+    )
+    answer_end_tokens=torch.tensor(tokenizer.encode("<end_of_turn>", add_special_tokens=False))
+    
 
 data_collator = LlamaSquadDataCollator(
     answer_start_tokens=answer_start_tokens,
