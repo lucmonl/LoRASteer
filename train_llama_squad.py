@@ -24,7 +24,7 @@ from typing import Optional, List, Union
 
 import torch
 import yaml
-from datasets import load_from_disk
+from datasets import load_from_disk, concatenate_datasets
 from peft import LoraConfig
 from transformers import HfArgumentParser, TrainingArguments
 
@@ -152,7 +152,7 @@ class ScriptArguments:
     #parser.add_argument('--analysis', nargs='+', type=str, help="alpha used for training")
 
 def get_directory(script_args):
-    directory = "../results/{}/{}".format(config.model_name, script_args.alpha)
+    directory = "../results/{}/{}/{}".format(config.dataset_name, config.model_name, script_args.alpha)
     return directory
 
 parser = HfArgumentParser(ScriptArguments)
@@ -233,11 +233,20 @@ for i, item in enumerate(train_dataset):
     print(i)
     print(item)
 """
+alpha_cnt = {0.0: 0, 0.25: 0, 0.5: 0, 0.75: 0, 1.0: 0}
+for item in train_dataset:
+    alpha_cnt[item['alpha']] += 1
+min_alpha_len = min([alpha_cnt[alpha] for alpha in alpha_cnt])
 
+dataset_filtered = []
 for label in [0, 0.25, 0.5, 0.75, 1.0]:
-    dataset = train_dataset.filter(lambda example: example["alpha"] == label)
-    print(len(dataset))
+    dataset_filtered.append(train_dataset.filter(lambda example: example["alpha"] == label))
+    #print(len(dataset))
 #sys.exit()
+    
+train_dataset = concatenate_datasets(dataset_filtered)
+train_dataset = train_dataset.shuffle()
+print("len of train dataset: ", len(train_dataset))
 
 if script_args.alpha == "full":
     pass

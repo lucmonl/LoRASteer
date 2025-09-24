@@ -1,8 +1,8 @@
 #model_name:  ../results/meta-llama/Llama-3.1-8B-Instruct/full/checkpoint-2000 # results/checkpoint-4000
-model_name:  ../results/meta-llama/Llama-3.1-8B-Instruct/0/checkpoint-3000 # results/checkpoint-4000
+model_name:  ../results/meta-llama/Llama-3.1-8B-Instruct/0/checkpoint-2000 # results/checkpoint-4000
 # model_name: meta-llama/Llama-2-7b-chat-hf
 system_prompt: |
   You are a helpful and honest assistant. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content.
 num_reasoning_tokens: 5
 multiple_reasoning_tokens: True
-dataset_name: /amazon_review/multi_alpha_dataset_short_llama_3 #/amazon_review/llama3_multi_alpha_dataset
+dataset_name: /amazon_review/multi_alpha_dataset_tiny_gemma #/amazon_review/multi_alpha_dataset_short_llama_3 #/amazon_review/llama3_multi_alpha_dataset
