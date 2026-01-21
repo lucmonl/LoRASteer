@@ -167,11 +167,12 @@ class ScriptArguments:
     #parser.add_argument('--analysis', nargs='+', type=str, help="alpha used for training")
 
 def get_directory(script_args):
-    directory = "../results/{}/{}/{}/lr_{}/bs_{}/step_{}".format(script_args.dataset_name, 
+    directory = "../results/{}/{}/{}/lr_{}/bs_{}/rank_{}/step_{}".format(script_args.dataset_name, 
                                                    script_args.model_name, 
                                                    script_args.alpha, 
                                                    script_args.learning_rate,
                                                    script_args.per_device_train_batch_size,
+                                                   script_args.lora_r,
                                                    script_args.max_steps,
                                                    )
     return directory
