@@ -1,3 +1,7 @@
+"""
+This version seems not used.
+"""
+
 import datasets
 from datasets import Dataset, DatasetDict, load_dataset
 import random
@@ -18,8 +22,8 @@ from transformers import pipeline
 MODEL_FOLDER="/u/lucmon/lucmon/hf_home/hub/" #models--meta-llama--
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
-model = AutoModelForCausalLM.from_pretrained(HF_HOME+"hub/Llama-3.2-1B-Instruct")
+tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8B-Instruct")
+model = AutoModelForCausalLM.from_pretrained(HF_HOME+"/hub/Llama-3.1-8B-Instruct")
 pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
 
 def get_description_from_review(review):
@@ -124,6 +128,7 @@ for category_name in categories:
             product = product_metadata_description[parent_asin]
             records_alpha[rating].append({
                 "alpha": rating,
+                "category": category_name,
                 "input": "Write a review for the product based on the title, category and description. Title: {}. Category: {}. ".format(product[0], product[1]),
                 "target": review_text,
             })
@@ -159,5 +164,5 @@ for category_name in categories:
         "test": test_dataset
     })
 
-    dataset_dict.save_to_disk(DATASETS_FOLDER+"/amazon_review/multi_alpha_dataset_2")
+    dataset_dict.save_to_disk(DATASETS_FOLDER+"/amazon_review/multi_alpha_dataset")
     

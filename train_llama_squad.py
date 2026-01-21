@@ -28,7 +28,7 @@ from datasets import load_from_disk, concatenate_datasets
 from peft import LoraConfig
 from transformers import HfArgumentParser, TrainingArguments
 
-from llama_squad import LlamaSquadDataCollator
+from llama_squad import SteerDataCollator, LlamaSquadDataCollator
 from model import (
     LlamaSquadCheckpointCallback,
     LlamaSquadSFTTrainer,
@@ -36,7 +36,7 @@ from model import (
 )
 
 import os
-DATASETS_FOLDER = os.environ["DATA_HOME"]
+DATASETS_FOLDER = os.environ["DATA_HOME"] + "/"
 
 
 @dataclass
@@ -99,7 +99,7 @@ class ScriptArguments:
         metadata={"help": "The optimizer to use."},
     )
     lr_scheduler_type: str = field(
-        default="constant",
+        default="constant", #"cosine"
         metadata={
             "help": "Learning rate schedule. Constant a bit better than cosine, and has advantage for analysis"
         },
@@ -118,7 +118,7 @@ class ScriptArguments:
         metadata={"help": "How many steps to take before evaluating model"},
     )
     warmup_ratio: float = field(
-        default=0,
+        default=0.01,
         metadata={"help": "Fraction of steps to do a warmup for"},
     )
     group_by_length: bool = field(
@@ -137,8 +137,23 @@ class ScriptArguments:
         default=False,
         metadata={"help": "Merge and push weights after training"},
     )
+    train_size: Optional[int] = field(
+        default=-1, metadata={"help": "number of training samples. -1 for whole dataset"}
+    )
+    dataset_name: str = field(
+        default="tba",
+        metadata={
+            "help": "dataset_name"
+        },
+    )
+    model_name: str = field(
+        default="tba",
+        metadata={
+            "help": "model_name"
+        },
+    )
     output_dir: str = field(
-        default="../results/",
+        default="tba",
         metadata={
             "help": "The output directory where the model predictions and checkpoints will be written."
         },
@@ -152,19 +167,25 @@ class ScriptArguments:
     #parser.add_argument('--analysis', nargs='+', type=str, help="alpha used for training")
 
 def get_directory(script_args):
-    directory = "../results/{}/{}/{}".format(config.dataset_name, config.model_name, script_args.alpha)
+    directory = "../results/{}/{}/{}/lr_{}/bs_{}/step_{}".format(script_args.dataset_name, 
+                                                   script_args.model_name, 
+                                                   script_args.alpha, 
+                                                   script_args.learning_rate,
+                                                   script_args.per_device_train_batch_size,
+                                                   script_args.max_steps,
+                                                   )
     return directory
 
 parser = HfArgumentParser(ScriptArguments)
 script_args = parser.parse_args_into_dataclasses()[0]
-config = SimpleNamespace(**yaml.safe_load(open("../config.yaml")))
+#config = SimpleNamespace(**yaml.safe_load(open("../config.yaml")))
 script_args.output_dir = get_directory(script_args)
 
 
 def create_and_prepare_model(args):
     compute_dtype = getattr(torch, args.bnb_4bit_compute_dtype)
     model, tokenizer, reasoning_tokens = get_model_and_tokenizer(
-        model_name=config.model_name,
+        model_name=script_args.model_name,
         quantize=args.use_4bit,
         load_in_4bit=args.use_4bit,
         bnb_4bit_quant_type=args.bnb_4bit_quant_type,
@@ -197,7 +218,9 @@ def create_and_prepare_model(args):
 
     return model, peft_config, tokenizer, reasoning_tokens
 
-
+print(script_args.lr_scheduler_kwargs)
+print(type(script_args.lr_scheduler_kwargs))
+print(json.loads(script_args.lr_scheduler_kwargs))
 training_arguments = TrainingArguments(
     output_dir=script_args.output_dir,
     per_device_train_batch_size=script_args.per_device_train_batch_size,
@@ -221,17 +244,20 @@ training_arguments = TrainingArguments(
 
 model, peft_config, tokenizer, reasoning_tokens = create_and_prepare_model(script_args)
 model.config.use_cache = False
-train_dataset = load_from_disk(DATASETS_FOLDER + config.dataset_name)["train"]
-eval_dataset = load_from_disk(DATASETS_FOLDER + config.dataset_name)["val"]
+train_dataset = load_from_disk(DATASETS_FOLDER + script_args.dataset_name)["train"]
+eval_dataset = load_from_disk(DATASETS_FOLDER + script_args.dataset_name)["validation"]
 
-#train_dataset = train_dataset.select(range(5))
-eval_dataset = eval_dataset.select(range(50))
+if script_args.train_size != -1:
+    train_dataset = train_dataset.select(range(script_args.train_size))
+eval_dataset = eval_dataset.select(range(2))
 
 """
 print("viewing dataset")
 for i, item in enumerate(train_dataset):
     print(i)
     print(item)
+"""
+
 """
 alpha_cnt = {0.0: 0, 0.25: 0, 0.5: 0, 0.75: 0, 1.0: 0}
 for item in train_dataset:
@@ -243,8 +269,9 @@ for label in [0, 0.25, 0.5, 0.75, 1.0]:
     dataset_filtered.append(train_dataset.filter(lambda example: example["alpha"] == label))
     #print(len(dataset))
 #sys.exit()
+"""
     
-train_dataset = concatenate_datasets(dataset_filtered)
+#train_dataset = concatenate_datasets(dataset_filtered)
 train_dataset = train_dataset.shuffle()
 print("len of train dataset: ", len(train_dataset))
 
@@ -261,6 +288,7 @@ print("dataset_num", len(train_dataset))
 # Fix weird overflow issue with fp16 training. (Is this still necessary?)
 tokenizer.padding_side = "right"
 
+"""
 if "Llama-3" in tokenizer.name_or_path:
     answer_start_tokens = torch.tensor(
         tokenizer.encode(
@@ -284,9 +312,19 @@ elif "gemma" in tokenizer.name_or_path:
         )
     )
     answer_end_tokens=torch.tensor(tokenizer.encode("<end_of_turn>", add_special_tokens=False))
-    
+"""
 
-data_collator = LlamaSquadDataCollator(
+if 'Llama-3' in tokenizer.name_or_path:
+    answer_start_tokens = torch.tensor(
+        tokenizer(" Response:", add_special_tokens=False)["input_ids"]
+    )
+    answer_end_tokens = torch.tensor(
+        tokenizer.encode("<|end_of_text|>", add_special_tokens=False)
+    )
+else:
+    raise ValueError("model_name not identified.")
+
+data_collator = SteerDataCollator( #LlamaSquadDataCollator(
     answer_start_tokens=answer_start_tokens,
     answer_end_tokens=torch.tensor([-100]),  # Hugging Face sets the end token to -100
     reasoning_tokens=reasoning_tokens,
@@ -297,7 +335,7 @@ data_collator = LlamaSquadDataCollator(
 trainer = LlamaSquadSFTTrainer(
     answer_start_tokens=answer_start_tokens,
     answer_end_tokens=answer_end_tokens,
-    num_reasoning_tokens=config.num_reasoning_tokens,
+    num_reasoning_tokens=0, #config.num_reasoning_tokens,
     model=model,
     train_dataset=train_dataset,
     eval_dataset=eval_dataset,
@@ -306,9 +344,10 @@ trainer = LlamaSquadSFTTrainer(
     args=training_arguments,
     #packing=script_args.packing,
     data_collator=data_collator,
-    formatting_func=lambda items: tokenizer.apply_chat_template(
-        items["messages"], tokenize=False
-    ),
+    #formatting_func=lambda items: tokenizer.apply_chat_template(
+    #    items["messages"], tokenize=False
+    #),
+    formatting_func=lambda items: items["inputs"] + " Response: " + items["targets"],
     callbacks=[LlamaSquadCheckpointCallback(model)],
 )
 

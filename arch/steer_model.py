@@ -217,7 +217,30 @@ class LlamaModel(LlamaPreTrainedModel):
 
         if position_ids is None:
             position_ids = cache_position.unsqueeze(0)
-
+        """
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained(
+            "meta-llama/Llama-3.2-1B-Instruct",
+            trust_remote_code=True,
+            use_fast=True,
+        )
+        tokenizer.pad_token = tokenizer.eos_token
+        
+        if isinstance(alpha, torch.Tensor):
+            for i in range(alpha.shape[0]):
+                print("in arch/steer_model.py ln230")
+                print("alpha:", alpha[i])
+                input_ids_no_pad = input_ids[i][input_ids[i] != -100]
+                print(tokenizer.decode(input_ids_no_pad))
+        elif isinstance(alpha, float):
+            print("in arch/steer_model.py ln235")
+            print("alpha:", alpha)
+            input_ids_no_pad = input_ids[input_ids != -100]
+            print(tokenizer.decode(input_ids_no_pad))
+        else:
+            print(type(alpha))
+            raise ValueError("Unknown alpha type")
+        """
         causal_mask = create_causal_mask(
             config=self.config,
             input_embeds=inputs_embeds,

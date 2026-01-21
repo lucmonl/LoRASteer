@@ -7,4 +7,4 @@ system_prompt: |
 num_reasoning_tokens: 5
 multiple_reasoning_tokens: True
 #dataset_name: /amazon_review/multi_alpha_dataset_short_llama_3 #_llama_3 #/amazon_review/llama3_multi_alpha_dataset
-dataset_name: /amazon_review/multi_alpha_dataset_gemma
+#dataset_name: /amazon_review/multi_alpha_dataset_gemma

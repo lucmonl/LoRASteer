@@ -336,6 +336,7 @@ class LlamaSquadSFTTrainer(SFTTrainer):
             alpha = item["alpha"]
             input_ids = torch.tensor(item["input_ids"]).to(self.model.device)
             window = input_ids.unfold(0, answer_start_tokens.shape[0], 1)
+            print(item)
             answer_starts = (
                 (window == answer_start_tokens).all(dim=1).nonzero()[:, 0]
                 + answer_start_tokens.shape[0]
@@ -346,6 +347,11 @@ class LlamaSquadSFTTrainer(SFTTrainer):
             answer_ends = (window == answer_end_tokens).all(dim=1).nonzero()[
                 :, 0
             ] + answer_end_tokens.shape[0]
+            print("answer starts: ", answer_starts)
+
+            print("input_ids", input_ids)
+            print("answer_end_tokens", answer_end_tokens)
+            print("answer ends: ", answer_ends)
 
             offset = 0
             for answer_start in answer_starts:
