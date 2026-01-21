@@ -2,6 +2,7 @@
 
 import logging
 import os
+import sys
 from functools import partial
 from threading import Thread
 from typing import Iterator, Optional
@@ -207,6 +208,28 @@ class StopAfterTokens(StoppingCriteria):
         self.tokens = self.tokens.to(input_ids.device)
         return input_ids[0][-len(self.tokens)] == self.tokens
 
+
+def model_generate(messages, alpha, pipeline, num_beams=None, force_answer=True):
+    stopping_criteria = None
+    #for _, message in enumerate(messages):
+    print("message:", messages)
+    response = pipeline(
+        messages,
+        alpha=alpha,
+        do_sample=False,
+        num_beams=num_beams,
+        num_return_sequences=1,
+        max_new_tokens=512,
+        temperature=None,
+        top_p=None,
+        stopping_criteria=stopping_criteria,
+    )[0]["generated_text"]
+    #response = response[len(prompt) :].strip()
+    review = response[len(messages) :]
+    print(f"prompt: {messages}", flush=True)
+    print(f"generation: {review}", flush=True)
+    #return extract_review(response), response
+    return review, response
 
 def get_answer(messages, alpha, pipeline, num_beams=None, force_answer=True):
     assistant_messages = [
