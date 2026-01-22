@@ -386,21 +386,21 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                         input_ids[answer_start:], skip_special_tokens=True
                     )
                 )
-
-                output = self.model.generate(
-                    input_ids=input_ids[:answer_start].unsqueeze(0),
-                    alpha=alpha,
-                    attention_mask=torch.ones_like(input_ids[:answer_start]).unsqueeze(
-                        0
-                    ),
-                    do_sample=False,
-                    num_return_sequences=1,
-                    max_new_tokens=512,
-                    temperature=None,
-                    top_p=None,
-                    stopping_criteria=self.stopping_criteria,
-                    pad_token_id=self.tokenizer.pad_token_id,
-                )
+                with torch.autocast("cuda", dtype=torch.bfloat16):
+                    output = self.model.generate(
+                        input_ids=input_ids[:answer_start].unsqueeze(0),
+                        alpha=alpha,
+                        attention_mask=torch.ones_like(input_ids[:answer_start]).unsqueeze(
+                            0
+                        ),
+                        do_sample=False,
+                        num_return_sequences=1,
+                        max_new_tokens=512,
+                        temperature=None,
+                        top_p=None,
+                        stopping_criteria=self.stopping_criteria,
+                        pad_token_id=self.tokenizer.pad_token_id,
+                    )
 
                 model_answer = extract_review(
                     self.tokenizer.decode(
