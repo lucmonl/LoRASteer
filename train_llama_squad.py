@@ -193,18 +193,19 @@ class ScriptArguments:
 
 def get_directory(script_args):
     if script_args.mode == "train":
-        directory = "../results/{}/{}/{}/{}/lr_{}/bs_{}/rank_{}/step_{}".format(
+        directory = "../results/{}/{}/{}/{}/apply_{}/lr_{}/bs_{}/rank_{}/step_{}".format(
                                                     script_args.mode,
                                                     script_args.dataset_name, 
                                                     script_args.model_name, 
                                                     script_args.alpha, 
+                                                    script_args.apply_lora_to,
                                                     script_args.learning_rate,
                                                     script_args.per_device_train_batch_size,
                                                     script_args.lora_r,
                                                     script_args.max_steps,
                                                     )
     elif script_args.mode == "finetune":
-        directory = "../results/{}/{}/{}/{}/ft_{}/apply__{}/lr_{}/bs_{}/rank_{}/step_{}".format(
+        directory = "../results/{}/{}/{}/{}/ft_{}/apply_{}/lr_{}/bs_{}/rank_{}/step_{}".format(
                                                     script_args.mode,
                                                     script_args.dataset_name, 
                                                     script_args.ckpt_path[11:], 
@@ -224,6 +225,8 @@ parser = HfArgumentParser(ScriptArguments)
 script_args = parser.parse_args_into_dataclasses()[0]
 #config = SimpleNamespace(**yaml.safe_load(open("../config.yaml")))
 script_args.output_dir = get_directory(script_args)
+print("Output dir:")
+print(script_args.output_dir)
 
 
 def create_and_prepare_model(args):
