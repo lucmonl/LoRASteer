@@ -57,6 +57,9 @@ def add_reasoning_tokens(
 
     return reasoning_token_ids
 
+def print_line_break(s: str, width: int = 200, flush=True):
+    for i in range(0, len(s), width):
+        print(s[i:i + width], flush=True)
 
 def get_model_and_tokenizer(
     model_name: str,
@@ -67,6 +70,7 @@ def get_model_and_tokenizer(
     bnb_4bit_quant_type: str = "nf4",
     bnb_4bit_compute_dtype: torch.dtype = torch.float16,
     bnb_4bit_use_double_quant: bool = False,
+    apply_lora_to: str='tba',
 ) -> tuple[AutoModelForCausalLM, AutoTokenizer]:
     if quantize:
         bnb_config = BitsAndBytesConfig(
@@ -97,6 +101,7 @@ def get_model_and_tokenizer(
         device_map="auto",
         use_auth_token=True,
         num_new_tokens=reasoning_tokens.shape[0],
+        apply_lora_to=apply_lora_to,
     )
     model.patch_embeddings()
     #print("after LlamaSquadModel.from_pretrained")
@@ -226,8 +231,8 @@ def model_generate(messages, alpha, pipeline, num_beams=None, force_answer=True)
     )[0]["generated_text"]
     #response = response[len(prompt) :].strip()
     review = response[len(messages) :]
-    print(f"prompt: {messages}", flush=True)
-    print(f"generation: {review}", flush=True)
+    print_line_break(f"prompt: {messages}", flush=True)
+    print_line_break(f"generation: {review}", flush=True)
     #return extract_review(response), response
     return review, response
 

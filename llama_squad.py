@@ -147,7 +147,10 @@ class ExtendedEmbedding(torch.nn.Module):
 
 
 class LlamaSquadModel(LlamaForCausalLM):
-    def __init__(self, config: LlamaConfig, num_new_tokens: int):
+    def __init__(self, config: LlamaConfig, num_new_tokens: int, apply_lora_to: str):
+        self.apply_lora_to = apply_lora_to
+        print(self.apply_lora_to)
+        config.apply_lora_to=apply_lora_to
         super().__init__(config)
         if num_new_tokens > 0:
             self.new_embedding = torch.nn.Embedding(

@@ -235,6 +235,7 @@ def create_and_prepare_model(args):
         bnb_4bit_quant_type=args.bnb_4bit_quant_type,
         bnb_4bit_compute_dtype=compute_dtype,
         bnb_4bit_use_double_quant=args.use_nested_quant,
+        apply_lora_to=args.apply_lora_to
     )
 
     # check: https://github.com/huggingface/transformers/pull/24906

@@ -73,6 +73,8 @@ class LlamaAttention(nn.Module):
             config.num_attention_heads * self.head_dim, config.hidden_size, bias=config.attention_bias
         )
 
+        self.apply_lora_to = config.apply_lora_to
+
     @deprecate_kwarg("past_key_value", new_name="past_key_values", version="4.58")
     def forward(
         self,
@@ -88,14 +90,16 @@ class LlamaAttention(nn.Module):
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
 
-        """
-        query_states = self.q_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
-        key_states = self.k_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
-        value_states = self.v_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
-        """
-        query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
-        key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
-        value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        if self.apply_lora_to == 'all':
+            query_states = self.q_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
+            key_states = self.k_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
+            value_states = self.v_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
+        elif self.apply_lora_to == 'proj':
+            query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+            key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+            value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        else:
+            raise ValueError(f"unknown apply_lora_to: {self.apply_lora_to}")
 
         cos, sin = position_embeddings
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
@@ -121,8 +125,12 @@ class LlamaAttention(nn.Module):
         )
 
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
-        #attn_output = self.o_proj(attn_output, alpha=alpha)
-        attn_output = self.o_proj(attn_output)
+        if self.apply_lora_to == 'all':
+            attn_output = self.o_proj(attn_output, alpha=alpha)
+        elif self.apply_lora_to == 'proj':
+            attn_output = self.o_proj(attn_output)
+        else:
+            raise ValueError(f"unknown apply_lora_to: {self.apply_lora_to}")
         return attn_output, attn_weights
 
 
@@ -290,7 +298,8 @@ class LlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
         self.model = LlamaModel(config)
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-
+        
+        self.apply_lora_to = config.apply_lora_to
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -345,10 +354,13 @@ class LlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
         hidden_states = outputs.last_hidden_state
         # Only compute necessary logits, and do not upcast them to float if we are not computing the loss
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
-        #logits = self.lm_head(hidden_states[:, slice_indices, :], alpha=alpha)
 
-        print("hidden states dtype: ", hidden_states.dtype)
-        logits = self.lm_head(hidden_states[:, slice_indices, :])
+        if self.apply_lora_to == 'all':
+            logits = self.lm_head(hidden_states[:, slice_indices, :], alpha=alpha)
+        elif self.apply_lora_to == 'proj':
+            logits = self.lm_head(hidden_states[:, slice_indices, :])
+        else:
+            raise ValueError("unknown apply_lora_to")
 
         loss = None
         if labels is not None:

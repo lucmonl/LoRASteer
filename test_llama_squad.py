@@ -41,6 +41,12 @@ class ScriptArguments:
     skip_samples: Optional[int] = field(default=None)
     num_beams: Optional[int] = field(default=1)
     force_answer: Optional[bool] = field(default=True)
+    apply_lora_to: str = field(
+        default="tba",
+        metadata={
+            "help": "The output directory where the model predictions and checkpoints will be written."
+        },
+    )
 
 
 parser = HfArgumentParser(ScriptArguments)
@@ -58,10 +64,14 @@ model, tokenizer, _ = get_model_and_tokenizer(
     adapter_name=script_args.adapter_name,
     tokenizer_name=script_args.tokenizer_name,
     quantize=script_args.quantize,
+    apply_lora_to=script_args.apply_lora_to,
 )
 
 for name, param in model.named_parameters():
-    print(name, param.shape)
+    try:
+        print(name, param.shape, param.norm().item())
+    except:
+        print(name, param.dtype)
 
 pipeline = transformers.pipeline(
     "text-generation",
