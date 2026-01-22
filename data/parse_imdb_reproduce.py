@@ -10,6 +10,30 @@ import json
 import random
 from datasets import Dataset, DatasetDict
 
+np.random.seed(42)
+
+import re
+
+def trim_incomplete_tail(paragraph):
+    """
+    Removes the trailing part of a string that does not end with 
+    a completion sign (., !, or ?).
+    """
+    # Define the completion signs
+    # This regex looks for the last ., !, or ? in the string
+    match = list(re.finditer(r'[.!?;]', paragraph))
+    
+    if not match:
+        # If no completion signs are found, the whole paragraph might be incomplete
+        return ""
+    
+    # Get the position of the last punctuation mark
+    last_sign_index = match[-1].end()
+    
+    # Return the paragraph up to that index
+    return paragraph[:last_sign_index].strip()
+
+
 def get_alpha_cnt(processed_records):
   alpha_cnt = {0.0: 0, 0.25: 0, 0.5: 0, 0.75: 0, 1.0: 0}
   for record in processed_records:
@@ -57,6 +81,7 @@ def process_data_raw(data_raw_sampled, split="train", alpha=-1,):
     for ex in data_raw_sampled[rating_key]:
       inputs = ex['input']
       targets = ex['target']
+      targets = trim_incomplete_tail(targets) ### trim the last uncomplete sentence
       if split == 'train':
         rescaled_alpha = rescale_alpha(float(ex['alpha']))
       else:
@@ -93,8 +118,8 @@ for i in range(len(processed_records)):
 np.random.seed(42)
 np.random.shuffle(processed_records)
 
-get_alpha_cnt(filtered_records)
-train_dataset = Dataset.from_list(filtered_records)
+get_alpha_cnt(processed_records)
+train_dataset = Dataset.from_list(processed_records)
 
 
 ### valiadation split

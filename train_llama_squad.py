@@ -240,7 +240,6 @@ training_arguments = TrainingArguments(
     lr_scheduler_kwargs=json.loads(script_args.lr_scheduler_kwargs),
     eval_strategy='steps', #"steps",
     eval_steps=script_args.eval_steps,
-    max_length=2048
 )
 
 model, peft_config, tokenizer, reasoning_tokens = create_and_prepare_model(script_args)
