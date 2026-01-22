@@ -177,7 +177,13 @@ class ScriptArguments:
             "help": "The output directory where the model predictions and checkpoints will be written."
         },
     )
-    apply_lora_to_all_layers: Optional[bool] = field(default=True)
+    #apply_lora_to_all_layers: Optional[bool] = field(default=True)
+    apply_lora_to: str = field(
+        default="tba",
+        metadata={
+            "help": "The output directory where the model predictions and checkpoints will be written."
+        },
+    )
     resume_from_checkpoint: Optional[str] = field(default=None)
     embedding_only: Optional[bool] = field(default=False)
     embedding_checkpoint: Optional[str] = field(default=None)
@@ -198,12 +204,13 @@ def get_directory(script_args):
                                                     script_args.max_steps,
                                                     )
     elif script_args.mode == "finetune":
-        directory = "../results/{}/{}/{}/{}/ft_{}/lr_{}/bs_{}/rank_{}/step_{}".format(
+        directory = "../results/{}/{}/{}/{}/ft_{}/apply__{}/lr_{}/bs_{}/rank_{}/step_{}".format(
                                                     script_args.mode,
                                                     script_args.dataset_name, 
                                                     script_args.ckpt_path[11:], 
                                                     script_args.alpha, 
                                                     script_args.ft_method,
+                                                    script_args.apply_lora_to,
                                                     script_args.learning_rate,
                                                     script_args.per_device_train_batch_size,
                                                     script_args.lora_r,
@@ -233,13 +240,23 @@ def create_and_prepare_model(args):
     # check: https://github.com/huggingface/transformers/pull/24906
     model.config.pretraining_tp = 1
 
-    if args.apply_lora_to_all_layers:
+    if args.apply_lora_to == "all":
         model_modules = str(model.modules)
         pattern = r"\((\w+)\): Linear"
         linear_layer_names = re.findall(pattern, model_modules)
         names = []
         for name in linear_layer_names:
             names.append(name)
+        target_modules = list(set(names))
+    elif args.apply_lora_to == "proj":
+        model_modules = str(model.modules)
+        pattern = r"\((\w+)\): Linear"
+        linear_layer_names = re.findall(pattern, model_modules)
+        names = []
+        target_projections = ['gate_proj', 'up_proj', 'down_proj']
+        for name in linear_layer_names:
+            if any(proj in name for proj in target_projections):
+                names.append(name)
         target_modules = list(set(names))
     else:
         target_modules = None

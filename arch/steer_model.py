@@ -88,9 +88,14 @@ class LlamaAttention(nn.Module):
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
 
+        """
         query_states = self.q_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
         key_states = self.k_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
         value_states = self.v_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
+        """
+        query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
 
         cos, sin = position_embeddings
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
@@ -116,7 +121,8 @@ class LlamaAttention(nn.Module):
         )
 
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
-        attn_output = self.o_proj(attn_output, alpha=alpha)
+        #attn_output = self.o_proj(attn_output, alpha=alpha)
+        attn_output = self.o_proj(attn_output)
         return attn_output, attn_weights
 
 
@@ -339,7 +345,10 @@ class LlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
         hidden_states = outputs.last_hidden_state
         # Only compute necessary logits, and do not upcast them to float if we are not computing the loss
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
-        logits = self.lm_head(hidden_states[:, slice_indices, :], alpha=alpha)
+        #logits = self.lm_head(hidden_states[:, slice_indices, :], alpha=alpha)
+
+        print("hidden states dtype: ", hidden_states.dtype)
+        logits = self.lm_head(hidden_states[:, slice_indices, :])
 
         loss = None
         if labels is not None:
