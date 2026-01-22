@@ -67,10 +67,7 @@ class SteerDataCollator(DataCollatorForLanguageModeling):
             labels = labels.where(mask == 0, -100)
 
             batch["labels"][i] = labels
-        """
-        for key in batch:
-            print(key, batch[key])
-        """
+
         return batch
 
 

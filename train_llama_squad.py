@@ -27,6 +27,7 @@ import yaml
 from datasets import load_from_disk, concatenate_datasets
 from peft import LoraConfig
 from transformers import HfArgumentParser, TrainingArguments
+from trl.trainer import SFTConfig
 
 from llama_squad import SteerDataCollator, LlamaSquadDataCollator
 from model import (
@@ -140,6 +141,12 @@ class ScriptArguments:
     train_size: Optional[int] = field(
         default=-1, metadata={"help": "number of training samples. -1 for whole dataset"}
     )
+    mode: str = field(
+        default="tba",
+        metadata={
+            "help": "mode: train or finetune"
+        },
+    )
     dataset_name: str = field(
         default="tba",
         metadata={
@@ -150,6 +157,18 @@ class ScriptArguments:
         default="tba",
         metadata={
             "help": "model_name"
+        },
+    )
+    ckpt_path: str = field(
+        default="tba",
+        metadata={
+            "help": "ckpt path for finetune"
+        },
+    )
+    ft_method: str = field(
+        default="tba",
+        metadata={
+            "help": "method for finetune"
         },
     )
     output_dir: str = field(
@@ -167,14 +186,31 @@ class ScriptArguments:
     #parser.add_argument('--analysis', nargs='+', type=str, help="alpha used for training")
 
 def get_directory(script_args):
-    directory = "../results/{}/{}/{}/lr_{}/bs_{}/rank_{}/step_{}".format(script_args.dataset_name, 
-                                                   script_args.model_name, 
-                                                   script_args.alpha, 
-                                                   script_args.learning_rate,
-                                                   script_args.per_device_train_batch_size,
-                                                   script_args.lora_r,
-                                                   script_args.max_steps,
-                                                   )
+    if script_args.mode == "train":
+        directory = "../results/{}/{}/{}/{}/lr_{}/bs_{}/rank_{}/step_{}".format(
+                                                    script_args.mode,
+                                                    script_args.dataset_name, 
+                                                    script_args.model_name, 
+                                                    script_args.alpha, 
+                                                    script_args.learning_rate,
+                                                    script_args.per_device_train_batch_size,
+                                                    script_args.lora_r,
+                                                    script_args.max_steps,
+                                                    )
+    elif script_args.mode == "finetune":
+        directory = "../results/{}/{}/{}/{}/ft_{}/lr_{}/bs_{}/rank_{}/step_{}".format(
+                                                    script_args.mode,
+                                                    script_args.dataset_name, 
+                                                    script_args.ckpt_path[11:], 
+                                                    script_args.alpha, 
+                                                    script_args.ft_method,
+                                                    script_args.learning_rate,
+                                                    script_args.per_device_train_batch_size,
+                                                    script_args.lora_r,
+                                                    script_args.max_steps,
+                                                    )
+    else:
+        raise ValueError("Unknown --mode")
     return directory
 
 parser = HfArgumentParser(ScriptArguments)
@@ -222,7 +258,7 @@ def create_and_prepare_model(args):
 print(script_args.lr_scheduler_kwargs)
 print(type(script_args.lr_scheduler_kwargs))
 print(json.loads(script_args.lr_scheduler_kwargs))
-training_arguments = TrainingArguments(
+training_arguments = SFTConfig(
     output_dir=script_args.output_dir,
     per_device_train_batch_size=script_args.per_device_train_batch_size,
     gradient_accumulation_steps=script_args.gradient_accumulation_steps,
@@ -240,6 +276,8 @@ training_arguments = TrainingArguments(
     lr_scheduler_kwargs=json.loads(script_args.lr_scheduler_kwargs),
     eval_strategy='steps', #"steps",
     eval_steps=script_args.eval_steps,
+    #resume_from_checkpoint={"pretrained_model_name_or_path": script_args.ckpt_path}, #omit '../results/'
+    resume_from_checkpoint={"pretrained_model_name_or_path": "/work/nvme/bdch/lucmon/LoRASteer/results/amazon_review_reproduce/amazon-long-subclass-multi-alpha-300k/meta-llama/Llama-3.1-8B/full/lr_2e-05/bs_2/step_20000/checkpoint-2500/"}, #omit '../results/'
 )
 
 model, peft_config, tokenizer, reasoning_tokens = create_and_prepare_model(script_args)
@@ -332,6 +370,14 @@ data_collator = SteerDataCollator( #LlamaSquadDataCollator(
     mlm=False,
 )
 
+if script_args.mode == "finetune":
+    from peft import PeftModel
+    model = PeftModel.from_pretrained(
+        model,
+        script_args.ckpt_path,
+        is_trainable=True,   # IMPORTANT
+    )
+
 trainer = LlamaSquadSFTTrainer(
     answer_start_tokens=answer_start_tokens,
     answer_end_tokens=answer_end_tokens,
@@ -339,7 +385,7 @@ trainer = LlamaSquadSFTTrainer(
     model=model,
     train_dataset=train_dataset,
     eval_dataset=eval_dataset,
-    peft_config=peft_config,
+    peft_config=peft_config if script_args.mode == "train" else None,
     #tokenizer=tokenizer,
     args=training_arguments,
     #packing=script_args.packing,
