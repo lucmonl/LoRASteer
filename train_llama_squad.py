@@ -132,7 +132,7 @@ class ScriptArguments:
         default=10, metadata={"help": "Save checkpoint every X updates steps."}
     )
     logging_steps: int = field(
-        default=10, metadata={"help": "Log every X updates steps."}
+        default=1, metadata={"help": "Log every X updates steps."}
     )
     merge_and_push: Optional[bool] = field(
         default=False,
@@ -265,14 +265,19 @@ def create_and_prepare_model(args):
     else:
         target_modules = None
 
-    peft_config = LoraConfig(
-        target_modules=target_modules,
-        lora_alpha=script_args.lora_alpha,
-        lora_dropout=script_args.lora_dropout,
-        r=script_args.lora_r,
-        bias="none",
-        task_type="CAUSAL_LM",
-    )
+    if args.mode == "train":
+        peft_config = LoraConfig(
+            target_modules=target_modules,
+            lora_alpha=script_args.lora_alpha,
+            lora_dropout=script_args.lora_dropout,
+            r=script_args.lora_r,
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
+    elif args.mode == "finetune":
+        peft_config = LoraConfig.from_pretrained(args.ckpt_path)
+    else:
+        raise ValueError("Unknown mode")
 
     return model, peft_config, tokenizer, reasoning_tokens
 
@@ -399,6 +404,17 @@ if script_args.mode == "finetune":
         is_trainable=True,   # IMPORTANT
     )
 
+    print("Trainable Params: ")
+    model.print_trainable_parameters()
+    for name, param in model.named_parameters():
+        if 'lora' in name:
+            print(name)
+            param.requires_grad=True
+        else:
+            print("excluded", name)
+    print("Trainable Params after setting requires_grad: ")
+    model.print_trainable_parameters()
+
 trainer = LlamaSquadSFTTrainer(
     answer_start_tokens=answer_start_tokens,
     answer_end_tokens=answer_end_tokens,
@@ -406,6 +422,7 @@ trainer = LlamaSquadSFTTrainer(
     model=model,
     train_dataset=train_dataset,
     eval_dataset=eval_dataset,
+    #peft_config=peft_config,
     peft_config=peft_config if script_args.mode == "train" else None,
     #tokenizer=tokenizer,
     args=training_arguments,

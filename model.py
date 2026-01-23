@@ -315,8 +315,17 @@ class LlamaSquadSFTTrainer(SFTTrainer):
         **kwargs,
     ):
         print("before SFTTrainer init")
+        kwargs["model"].print_trainable_parameters()
+        name_require_grad = {}
+        for name, param in kwargs["model"].named_parameters():
+            name_require_grad[name] = param.requires_grad
         super().__init__(*args, **kwargs)
-        print("starts LlamaSquadSFTTrainer init")
+        print("after super init")
+        self.model.print_trainable_parameters()
+        for name, param in self.model.named_parameters():
+            param.requires_grad = name_require_grad[name]
+        # make sure the model's trainable parameters does not change after init!
+        self.model.print_trainable_parameters()
         self.answer_start_tokens = answer_start_tokens
         self.answer_end_tokens = answer_end_tokens
         self.num_reasoning_tokens = num_reasoning_tokens
