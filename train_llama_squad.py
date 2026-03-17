@@ -440,6 +440,7 @@ trainer = LlamaSquadSFTTrainer(
     #),
     formatting_func=lambda items: items["inputs"] + " Response: " + items["targets"],
     callbacks=[LlamaSquadCheckpointCallback(model)],
+    is_finetune = script_args.mode == "finetune",
 )
 
 print("after init trainer")

@@ -31,6 +31,8 @@ from transformers.models.llama.modeling_llama import LlamaPreTrainedModel, eager
 from transformers.models.llama.modeling_llama import LlamaRMSNorm
 from transformers.models.llama.modeling_llama import LlamaRotaryEmbedding
 
+from torch.nn import Linear
+
 
 class LlamaMLP(nn.Module):
     def __init__(self, config):

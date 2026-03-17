@@ -311,21 +311,24 @@ class LlamaSquadSFTTrainer(SFTTrainer):
         answer_start_tokens: torch.Tensor,
         answer_end_tokens: torch.Tensor,
         num_reasoning_tokens: int,
+        is_finetune: bool,
         *args,
         **kwargs,
     ):
-        print("before SFTTrainer init")
-        kwargs["model"].print_trainable_parameters()
-        name_require_grad = {}
-        for name, param in kwargs["model"].named_parameters():
-            name_require_grad[name] = param.requires_grad
+        if is_finetune:
+            print("before SFTTrainer init")
+            kwargs["model"].print_trainable_parameters()
+            name_require_grad = {}
+            for name, param in kwargs["model"].named_parameters():
+                name_require_grad[name] = param.requires_grad
         super().__init__(*args, **kwargs)
-        print("after super init")
-        self.model.print_trainable_parameters()
-        for name, param in self.model.named_parameters():
-            param.requires_grad = name_require_grad[name]
+        if is_finetune:
+            print("after super init")
+            self.model.print_trainable_parameters()
+            for name, param in self.model.named_parameters():
+                param.requires_grad = name_require_grad[name]
         # make sure the model's trainable parameters does not change after init!
-        self.model.print_trainable_parameters()
+            self.model.print_trainable_parameters()
         self.answer_start_tokens = answer_start_tokens
         self.answer_end_tokens = answer_end_tokens
         self.num_reasoning_tokens = num_reasoning_tokens
@@ -400,6 +403,11 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                         input_ids[answer_start:], skip_special_tokens=True
                     )
                 )
+                print("answer start to end")
+                print(self.tokenizer.decode(
+                        input_ids[answer_start:answer_end+1], skip_special_tokens=True
+                    ))
+                print("extracted answers: ", answers)
                 with torch.autocast("cuda", dtype=torch.bfloat16):
                     output = self.model.generate(
                         input_ids=input_ids[:answer_start].unsqueeze(0),
@@ -421,6 +429,10 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                         output[0, answer_start - 1 :], skip_special_tokens=True
                     )
                 )
+                print("model answer: ")
+                print(self.tokenizer.decode(
+                        output[0, answer_start - 1 :], skip_special_tokens=True
+                    ))
                 input_ids = torch.concat(
                     [
                         input_ids[:answer_start],
@@ -431,7 +443,7 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                 offset += output.shape[1] - answer_end
 
             if answers is None:
-                logger.warn("Answer not found in prompt, skipping...")
+                logger.warning("Answer not found in prompt, skipping...")
                 continue
             correct = 1 if is_exact_match(model_answer, answers) else 0
             exact_match += correct
