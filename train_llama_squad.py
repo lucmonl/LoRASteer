@@ -303,7 +303,7 @@ training_arguments = SFTConfig(
     eval_strategy='steps', #"steps",
     eval_steps=script_args.eval_steps,
     #resume_from_checkpoint={"pretrained_model_name_or_path": script_args.ckpt_path}, #omit '../results/'
-    resume_from_checkpoint={"pretrained_model_name_or_path": "/work/nvme/bdch/lucmon/LoRASteer/results/amazon_review_reproduce/amazon-long-subclass-multi-alpha-300k/meta-llama/Llama-3.1-8B/full/lr_2e-05/bs_2/step_20000/checkpoint-2500/"}, #omit '../results/'
+    #resume_from_checkpoint={"pretrained_model_name_or_path": "/work/nvme/bdch/lucmon/LoRASteer/results/amazon_review_reproduce/amazon-long-subclass-multi-alpha-300k/meta-llama/Llama-3.1-8B/full/lr_2e-05/bs_2/step_20000/checkpoint-2500/"}, #omit '../results/'
 )
 
 model, peft_config, tokenizer, reasoning_tokens = create_and_prepare_model(script_args)
@@ -384,6 +384,13 @@ if 'Llama-3' in tokenizer.name_or_path:
     )
     answer_end_tokens = torch.tensor(
         tokenizer.encode("<|end_of_text|>", add_special_tokens=False)
+    )
+elif 'gemma' in tokenizer.name_or_path:
+    answer_start_tokens = torch.tensor(
+        tokenizer(" Response: <start_of_turn>model", add_special_tokens=False)["input_ids"]
+    )
+    answer_end_tokens = torch.tensor(
+        tokenizer.encode("<end_of_turn>", add_special_tokens=False)
     )
 else:
     raise ValueError("model_name not identified.")
