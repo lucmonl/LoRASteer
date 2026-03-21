@@ -446,6 +446,7 @@ trainer = LlamaSquadSFTTrainer(
 print("after init trainer")
 print(trainer.train_dataset[0].keys())
 
+
 if script_args.embedding_only:
     for name, param in model.named_parameters():
         if "new_embedding" not in name:
@@ -453,6 +454,10 @@ if script_args.embedding_only:
 
 if script_args.resume_from_checkpoint or script_args.embedding_checkpoint:
     trainer.load_embedding(script_args.embedding_checkpoint)
+
+print("before training")
+trainer.evaluate()
+
 
 trainer.train(resume_from_checkpoint=script_args.resume_from_checkpoint)
 

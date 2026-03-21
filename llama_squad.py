@@ -68,6 +68,22 @@ class SteerDataCollator(DataCollatorForLanguageModeling):
 
             batch["labels"][i] = labels
 
+            #print("I am in data collator.")
+            #for key in batch:
+            #    print(key, batch[key])
+
+            from transformers import AutoTokenizer
+            tokenizer = AutoTokenizer.from_pretrained(
+                "meta-llama/Llama-3.1-8B",
+                trust_remote_code=True,
+                use_fast=True,
+            )
+            tokenizer.pad_token = tokenizer.eos_token
+            no_eot_labels = labels[labels != -100]
+            #print(no_eot_labels)
+            #print(no_eot_labels.shape)
+            #print(tokenizer.decode(no_eot_labels[:-1]))
+
         return batch
 
 

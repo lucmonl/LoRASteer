@@ -6,3 +6,4 @@ lm_cache/
 .env
 notebook/
 sbatch/
+results
