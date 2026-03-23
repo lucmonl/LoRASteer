@@ -18,6 +18,7 @@
 import json
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Optional, List, Union
@@ -310,6 +311,7 @@ model, peft_config, tokenizer, reasoning_tokens = create_and_prepare_model(scrip
 model.config.use_cache = False
 train_dataset = load_from_disk(DATASETS_FOLDER + script_args.dataset_name)["train"]
 eval_dataset = load_from_disk(DATASETS_FOLDER + script_args.dataset_name)["validation"]
+#eval_dataset = eval_dataset.map(lambda x: {**x, "targets": ""})
 
 if script_args.train_size != -1:
     train_dataset = train_dataset.select(range(script_args.train_size))
@@ -348,9 +350,14 @@ else:
     assert len(train_dataset) > 0
 
 print("dataset_num", len(train_dataset))
+print("Train Sample: ", train_dataset[0])
+print("Eval Sample: ", eval_dataset[0])
 
 # Fix weird overflow issue with fp16 training. (Is this still necessary?)
 tokenizer.padding_side = "right"
+print('Tokenizer: ')
+print("begin of sentence token: ", tokenizer.bos_token)
+print("end of sentence token: ", tokenizer.eos_token)
 
 """
 if "Llama-3" in tokenizer.name_or_path:
@@ -386,11 +393,19 @@ if 'Llama-3' in tokenizer.name_or_path:
         tokenizer.encode("<|end_of_text|>", add_special_tokens=False)
     )
 elif 'gemma' in tokenizer.name_or_path:
+    """
     answer_start_tokens = torch.tensor(
         tokenizer(" Response: <start_of_turn>model", add_special_tokens=False)["input_ids"]
     )
     answer_end_tokens = torch.tensor(
         tokenizer.encode("<end_of_turn>", add_special_tokens=False)
+    )
+    """
+    answer_start_tokens = torch.tensor(
+        tokenizer(" Response:", add_special_tokens=False)["input_ids"]
+    )
+    answer_end_tokens = torch.tensor(
+        tokenizer.encode("<eos>", add_special_tokens=False)
     )
 else:
     raise ValueError("model_name not identified.")

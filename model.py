@@ -196,6 +196,8 @@ def run(
 
 
 def extract_review(text):
+    return text
+    """
     text = text[text.find("{") :]
     text = text[: text.find("}") + 1]
     try:
@@ -204,6 +206,7 @@ def extract_review(text):
     except:
         answer = None
     return answer
+    """
 
 
 class StopAfterTokens(StoppingCriteria):
@@ -352,6 +355,7 @@ class LlamaSquadSFTTrainer(SFTTrainer):
             )
 
     def evaluate(self, **kwargs):
+        self.model.eval()
         def cast_hook(dtype, module, inputs):
             return (inputs[0].to(dtype),)
 
@@ -376,8 +380,20 @@ class LlamaSquadSFTTrainer(SFTTrainer):
         for item in tqdm(self.eval_dataset, desc="Evaluating"):
             alpha = item["alpha"]
             input_ids = torch.tensor(item["input_ids"]).to(self.model.device)
+            from transformers import AutoTokenizer
+            tokenizer = AutoTokenizer.from_pretrained(
+                "google/gemma-7b",
+                trust_remote_code=True,
+                use_fast=True,
+            )
+            print("my input at evaluate: ")
+            print(tokenizer.decode(input_ids))
+            print("answer start token: ")
+            print(answer_start_tokens, tokenizer.decode(answer_start_tokens))
+            print("answer end token: ")
+            print(answer_end_tokens, tokenizer.decode(answer_end_tokens))
             window = input_ids.unfold(0, answer_start_tokens.shape[0], 1)
-            print(item)
+            #print(item)
             answer_starts = (
                 (window == answer_start_tokens).all(dim=1).nonzero()[:, 0]
                 + answer_start_tokens.shape[0]
@@ -389,6 +405,7 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                 :, 0
             ] + answer_end_tokens.shape[0]
             print(f"answer starts: {answer_starts}", flush=True)
+            print(f"answer ends: {answer_ends}", flush=True)
 
             #print("input_ids", input_ids)
             #("answer_end_tokens", answer_end_tokens)
@@ -404,10 +421,10 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                         input_ids[answer_start:], skip_special_tokens=True
                     )
                 )
-                print("answer start to end", flush=True)
-                print(self.tokenizer.decode(
-                        input_ids[answer_start:answer_end+1], skip_special_tokens=True
-                    ), flush=True)
+                #print("answer start to end", flush=True)
+                #print(self.tokenizer.decode(
+                #        input_ids[answer_start:answer_end+1], skip_special_tokens=True
+                #    ), flush=True)
                 print("extracted answers: ", answers)
                 with torch.autocast("cuda", dtype=torch.bfloat16):
                     output = self.model.generate(
@@ -430,17 +447,17 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                         output[0, answer_start - 1 :], skip_special_tokens=True
                     )
                 )
-                print("output ids")
-                print(output[0, answer_start - 1 :])
-                print("model answer first 5 tokens: ")
-                print(self.tokenizer.decode(
-                        output[0, answer_start - 1 :answer_start +4], skip_special_tokens=True
-                    ), flush=True)
-                print("model answer: ")
-                print(output)
-                print(self.tokenizer.decode(
-                        output[0, answer_start - 1 :], skip_special_tokens=True
-                    ), flush=True)
+                #print("output ids")
+                #print(output[0, answer_start - 1 :])
+                #print("model answer first 5 tokens: ")
+                #print(self.tokenizer.decode(
+                #        output[0, answer_start - 1 :answer_start +4], skip_special_tokens=True
+                #    ), flush=True)
+                #print("model answer: ")
+                #print(output)
+                #print(self.tokenizer.decode(
+                #        output[0, answer_start - 1 :], skip_special_tokens=True
+                #    ), flush=True)
                 input_ids = torch.concat(
                     [
                         input_ids[:answer_start],
