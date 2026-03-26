@@ -27,7 +27,8 @@ import torch
 import yaml
 from datasets import load_from_disk, concatenate_datasets
 from peft import LoraConfig
-from transformers import HfArgumentParser, TrainingArguments
+import transformers
+from transformers import HfArgumentParser, TrainingArguments, pipeline
 from trl.trainer import SFTConfig
 
 from llama_squad import SteerDataCollator, LlamaSquadDataCollator
@@ -35,6 +36,7 @@ from model import (
     LlamaSquadCheckpointCallback,
     LlamaSquadSFTTrainer,
     get_model_and_tokenizer,
+    model_generate,
 )
 
 import os
@@ -241,7 +243,6 @@ def create_and_prepare_model(args):
         bnb_4bit_use_double_quant=args.use_nested_quant,
         apply_lora_to=args.apply_lora_to
     )
-
     # check: https://github.com/huggingface/transformers/pull/24906
     model.config.pretraining_tp = 1
 
@@ -360,6 +361,23 @@ print("begin of sentence token: ", tokenizer.bos_token)
 print("end of sentence token: ", tokenizer.eos_token)
 
 """
+print("model sanity check at init")
+messages = "Hello, how are you?" + " Response: "
+pipeline = pipeline(
+    "text-generation",
+    model=model,
+    tokenizer=tokenizer,
+)
+model_answer, full_response = model_generate( #get_answer
+            messages=messages,
+            alpha=1.0,
+            pipeline=pipeline,
+            num_beams=1,
+            force_answer=True,
+        )
+print("Response: %s", full_response)
+"""
+"""
 if "Llama-3" in tokenizer.name_or_path:
     answer_start_tokens = torch.tensor(
         tokenizer.encode(
@@ -461,6 +479,22 @@ trainer = LlamaSquadSFTTrainer(
 print("after init trainer")
 print(trainer.train_dataset[0].keys())
 
+messages = "Hello, how are you?" + " Response: "
+with torch.autocast("cuda", dtype=torch.bfloat16):
+    pipeline = transformers.pipeline(
+        "text-generation",
+        model=trainer.model,
+        tokenizer=trainer.tokenizer,
+    )
+    model_answer, full_response = model_generate( #get_answer
+                messages=messages,
+                alpha=1.0,
+                pipeline=pipeline,
+                num_beams=1,
+                force_answer=True,
+            )
+print("Response: %s", full_response)
+
 
 if script_args.embedding_only:
     for name, param in model.named_parameters():
@@ -471,6 +505,21 @@ if script_args.resume_from_checkpoint or script_args.embedding_checkpoint:
     trainer.load_embedding(script_args.embedding_checkpoint)
 
 print("before training")
+messages = "Hello, how are you?" + " Response: "
+with torch.autocast("cuda", dtype=torch.bfloat16):
+    pipeline = transformers.pipeline(
+        "text-generation",
+        model=trainer.model,
+        tokenizer=trainer.tokenizer,
+    )
+    model_answer, full_response = model_generate( #get_answer
+                messages=messages,
+                alpha=1.0,
+                pipeline=pipeline,
+                num_beams=1,
+                force_answer=True,
+            )
+print("Response: %s", full_response)
 trainer.evaluate()
 
 

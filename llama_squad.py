@@ -1,9 +1,9 @@
 from typing import Optional
 import sys
 import torch
-from transformers import DataCollatorForLanguageModeling, LlamaConfig #, LlamaForCausalLM
+from transformers import DataCollatorForLanguageModeling, LlamaConfig, GemmaConfig #, LlamaForCausalLM
 from arch.steer_model import LlamaForCausalLM
-
+from arch.steer_model_gemma import GemmaForCausalLM
 class SteerDataCollator(DataCollatorForLanguageModeling):
     def __init__(
         self,
@@ -165,6 +165,23 @@ class ExtendedEmbedding(torch.nn.Module):
 
 class LlamaSquadModel(LlamaForCausalLM):
     def __init__(self, config: LlamaConfig, num_new_tokens: int, apply_lora_to: str):
+        self.apply_lora_to = apply_lora_to
+        print(self.apply_lora_to)
+        config.apply_lora_to=apply_lora_to
+        super().__init__(config)
+        if num_new_tokens > 0:
+            self.new_embedding = torch.nn.Embedding(
+                num_embeddings=num_new_tokens, embedding_dim=config.hidden_size
+            )
+
+    def patch_embeddings(self):
+        if hasattr(self, "new_embedding"):
+            self.base_model.embed_tokens = ExtendedEmbedding(
+                self.base_model.embed_tokens, self.new_embedding
+            )
+
+class GemmaSquadModel(GemmaForCausalLM):
+    def __init__(self, config: GemmaConfig, num_new_tokens: int, apply_lora_to: str):
         self.apply_lora_to = apply_lora_to
         print(self.apply_lora_to)
         config.apply_lora_to=apply_lora_to

@@ -24,11 +24,12 @@ from transformers import (
     TrainerControl,
     TrainerState,
     TrainingArguments,
+    pipeline,
 )
 from trl import SFTTrainer
 
 from create_squad_dataset import NO_RESPONSE, REASONING, config, is_exact_match
-from llama_squad import LlamaSquadModel
+from llama_squad import LlamaSquadModel, GemmaSquadModel
 
 handler = logging.StreamHandler()
 logger = logging.getLogger()
@@ -95,15 +96,25 @@ def get_model_and_tokenizer(
         tokenizer=tokenizer,
     )
 
-    model = LlamaSquadModel.from_pretrained(
-        model_name,
-        quantization_config=bnb_config,
-        device_map="auto",
-        #device_map="from_pretrained",
-        use_auth_token=True,
-        num_new_tokens=reasoning_tokens.shape[0],
-        apply_lora_to=apply_lora_to,
-    )
+    if 'gemma' in model_name:
+        model = GemmaSquadModel.from_pretrained(
+            model_name,
+            quantization_config=bnb_config,
+            device_map="auto",
+            use_auth_token=True,
+            num_new_tokens=reasoning_tokens.shape[0],
+            apply_lora_to=apply_lora_to,
+        )
+    else:
+        model = LlamaSquadModel.from_pretrained(
+            model_name,
+            quantization_config=bnb_config,
+            device_map="auto",
+            #device_map="from_pretrained",
+            use_auth_token=True,
+            num_new_tokens=reasoning_tokens.shape[0],
+            apply_lora_to=apply_lora_to,
+        )
     model.patch_embeddings()
     #print("after LlamaSquadModel.from_pretrained")
     #print(str(adapter_name))
@@ -380,18 +391,12 @@ class LlamaSquadSFTTrainer(SFTTrainer):
         for item in tqdm(self.eval_dataset, desc="Evaluating"):
             alpha = item["alpha"]
             input_ids = torch.tensor(item["input_ids"]).to(self.model.device)
-            from transformers import AutoTokenizer
-            tokenizer = AutoTokenizer.from_pretrained(
-                "google/gemma-7b",
-                trust_remote_code=True,
-                use_fast=True,
-            )
             print("my input at evaluate: ")
-            print(tokenizer.decode(input_ids))
+            print(self.tokenizer.decode(input_ids))
             print("answer start token: ")
-            print(answer_start_tokens, tokenizer.decode(answer_start_tokens))
+            print(answer_start_tokens, self.tokenizer.decode(answer_start_tokens))
             print("answer end token: ")
-            print(answer_end_tokens, tokenizer.decode(answer_end_tokens))
+            print(answer_end_tokens, self.tokenizer.decode(answer_end_tokens))
             window = input_ids.unfold(0, answer_start_tokens.shape[0], 1)
             #print(item)
             answer_starts = (
@@ -449,10 +454,10 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                 )
                 #print("output ids")
                 #print(output[0, answer_start - 1 :])
-                #print("model answer first 5 tokens: ")
-                #print(self.tokenizer.decode(
-                #        output[0, answer_start - 1 :answer_start +4], skip_special_tokens=True
-                #    ), flush=True)
+                print("model answer first 25 tokens: ")
+                print(self.tokenizer.decode(
+                        output[0, answer_start - 1 :answer_start + 24], skip_special_tokens=True
+                    ), flush=True)
                 #print("model answer: ")
                 #print(output)
                 #print(self.tokenizer.decode(
