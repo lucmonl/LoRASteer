@@ -10,6 +10,7 @@ import yaml
 from datasets import load_from_disk
 from tqdm import tqdm
 from transformers import HfArgumentParser
+from peft import PeftModel
 
 from create_squad_dataset import is_exact_match, get_single_turn_prompt_and_response
 from model import extract_review, get_answer, get_model_and_tokenizer, model_generate
@@ -66,7 +67,13 @@ model, tokenizer, _ = get_model_and_tokenizer(
     quantize=script_args.quantize,
     apply_lora_to=script_args.apply_lora_to,
 )
-
+"""
+model = PeftModel.from_pretrained(
+    model,
+    script_args.ckpt_path,
+    is_trainable=True,   # IMPORTANT
+)
+"""
 for name, param in model.named_parameters():
     try:
         print(name, param.shape, param.norm().item())
@@ -79,8 +86,8 @@ pipeline = transformers.pipeline(
     tokenizer=tokenizer,
 )
 
-
-with open(script_args.output_csv_file, "w") as file:
+output_csv_file =  script_args.model_name + f"/generated_results_{script_args.alpha}.csv"
+with open(output_csv_file, "w") as file:
     writer = csv.writer(file)
     writer.writerow(
         [
@@ -92,11 +99,12 @@ with open(script_args.output_csv_file, "w") as file:
     )
 
     dataset = load_from_disk(DATASETS_FOLDER + script_args.dataset)["test"]
+    print("Dataset length: ", len(dataset))
     if script_args.shuffle:
         dataset = dataset.shuffle(seed=script_args.seed)
     if script_args.num_samples is not None:
+        print("Selecting ", script_args.num_samples, " samples")
         dataset = dataset.select(range(script_args.num_samples))
-
     #for _, messages in enumerate(tqdm(dataset["messages"])):
     for _, record in enumerate(tqdm(dataset)):
         #messages = get_single_turn_prompt_and_response(record)["messages"]

@@ -7,3 +7,5 @@ lm_cache/
 notebook/
 sbatch/
 results
+output_pickle_large
+output_pickle_large/
