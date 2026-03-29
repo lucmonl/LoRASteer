@@ -124,16 +124,25 @@ with open(f"{input_path}/decoder_out_{script_args.ckpt_step}_shard_0.pickle", "r
 print("--- Sentiment Results ---", flush=True)
 #for entries in output_file:
 #the old prompt -> Prompt; generation -> Model answer
+mixed_num = 0
+total_num = 0
 for entries in generated_results:
     if entries["Prompt"] in annotated_old_kv:
         kv_id = annotated_old_kv[entries["Prompt"]]
         if annotated_old[kv_id]["annotation"] in sentiment_list:
             print(f"Using existing annotation. Sentiment: {annotated_old[kv_id]['annotation']}", flush=True)
             annotated.append(annotated_old[kv_id])
+            if annotated_old[kv_id]["annotation"] == "Mixed":
+                mixed_num += 1
+            total_num += 1
+            continue
 
     sentiment = evaluate_sentiment(entries["Model answer"])
+    if sentiment == "Mixed":
+        mixed_num += 1
+    total_num += 1
     #print_with_line_break(f"Text: {entries["generation"]}")
-    print(f"Sentiment: {sentiment}\n", flush=True)
+    print(f"Sentiment: {sentiment}\n Mixed Ratio: {mixed_num/total_num}", flush=True)
     annotated.append(
         {
             "prompt": entries["Prompt"],

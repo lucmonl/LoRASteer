@@ -100,6 +100,7 @@ for entries in generated_results:
         if annotated_old[kv_id]["annotation"] in sentiment_list:
             print(f"Using existing annotation. Sentiment: {annotated_old[kv_id]['annotation']}", flush=True)
             annotated.append(annotated_old[kv_id])
+            continue
 
     sentiment = evaluate_sentiment(entries["Model answer"])
     #print_with_line_break(f"Text: {entries["generation"]}")
