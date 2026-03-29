@@ -130,19 +130,25 @@ for entries in generated_results:
     if entries["Prompt"] in annotated_old_kv:
         kv_id = annotated_old_kv[entries["Prompt"]]
         if annotated_old[kv_id]["annotation"] in sentiment_list:
-            print(f"Using existing annotation. Sentiment: {annotated_old[kv_id]['annotation']}", flush=True)
+            print(f"Using existing annotation.", flush=True)
             annotated.append(annotated_old[kv_id])
             if annotated_old[kv_id]["annotation"] == "Mixed":
                 mixed_num += 1
-            total_num += 1
-            continue
+            if annotated_old[kv_id]["annotation"] in sentiment_list:
+                print(f"Sentiment: {annotated_old[kv_id]['annotation']}\n Mixed Ratio: {mixed_num/total_num}", flush=True)
+                total_num += 1
+                continue 
 
     sentiment = evaluate_sentiment(entries["Model answer"])
     if sentiment == "Mixed":
         mixed_num += 1
-    total_num += 1
+    if sentiment in sentiment_list:
+        total_num += 1
     #print_with_line_break(f"Text: {entries["generation"]}")
-    print(f"Sentiment: {sentiment}\n Mixed Ratio: {mixed_num/total_num}", flush=True)
+    if total_num > 0:
+        print(f"Sentiment: {sentiment}\n Mixed Ratio: {mixed_num/total_num}", flush=True)
+    else:
+        print(f"Sentiment: {sentiment}", flush=True)
     annotated.append(
         {
             "prompt": entries["Prompt"],

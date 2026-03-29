@@ -19,6 +19,9 @@ class ScriptArguments:
     alpha: Optional[float] = field(
         default=-1, metadata={"help": "Used for multi-gpu"}
     )
+    steer_method: Optional[str] = field(
+        default="LoRASteer", metadata={"help": "Used for multi-gpu"}
+    )
 
 parser = HfArgumentParser(ScriptArguments)
 script_args = parser.parse_args_into_dataclasses()[0]
@@ -65,6 +68,8 @@ def evaluate_sentiment(text_input):
 # ]
 
 input_path = script_args.input_path
+print("input path: ")
+print(input_path)
 """
 with open(f"{input_path}-{script_args.alpha}.json", "r") as json_file:
     output_file = json.load(json_file)
@@ -82,7 +87,15 @@ annotated = []
 sentiment_list = ["Positive", "Negative", "Mixed", "Undisclosed"]
 
 generated_results = []
-with open(script_args.input_path + f"/generated_results_{script_args.alpha}.csv", mode="r", encoding="utf-8") as file:
+if script_args.steer_method == "ActSteer":
+    generated_results_file = f"/generated_results_strength_{script_args.alpha}.csv"
+elif script_args.steer_method == "LoRASteer":
+    generated_results_file = f"/generated_results_{script_args.alpha}.csv"
+
+#with open(script_args.input_path + f"/generated_results_{script_args.alpha}.csv", mode="r", encoding="utf-8") as file:
+mixed_num = 0
+total_num = 0
+with open(script_args.input_path + generated_results_file, mode="r", encoding="utf-8") as file:
     reader = csv.DictReader(file)
     
     for row in reader:
@@ -98,13 +111,26 @@ for entries in generated_results:
     if entries["Prompt"] in annotated_old_kv:
         kv_id = annotated_old_kv[entries["Prompt"]]
         if annotated_old[kv_id]["annotation"] in sentiment_list:
-            print(f"Using existing annotation. Sentiment: {annotated_old[kv_id]['annotation']}", flush=True)
+            print(f"Using existing annotation.", flush=True)
             annotated.append(annotated_old[kv_id])
-            continue
+            if annotated_old[kv_id]["annotation"] == "Mixed":
+                mixed_num += 1
+            if annotated_old[kv_id]["annotation"] in sentiment_list:
+                total_num += 1
+                print(f"Sentiment: {annotated_old[kv_id]['annotation']}\n Mixed Ratio: {mixed_num/total_num}", flush=True)
+                continue 
+            
 
     sentiment = evaluate_sentiment(entries["Model answer"])
     #print_with_line_break(f"Text: {entries["generation"]}")
-    print(f"Sentiment: {sentiment}\n", flush=True)
+    if sentiment == "Mixed":
+        mixed_num += 1
+    if sentiment in sentiment_list:
+        total_num += 1
+    if total_num > 0:
+        print(f"Sentiment: {sentiment}\n Mixed Ratio: {mixed_num/total_num}", flush=True)
+    else:
+        print(f"Sentiment: {sentiment}", flush=True)
     annotated.append(
         {
             "prompt": entries["Prompt"],
