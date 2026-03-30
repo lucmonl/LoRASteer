@@ -231,6 +231,10 @@ script_args.output_dir = get_directory(script_args)
 print("Output dir:")
 print(script_args.output_dir)
 
+def add_ft_method(example):
+    example["ft_method"] = script_args.ft_method
+    return example
+
 
 def create_and_prepare_model(args):
     compute_dtype = getattr(torch, args.bnb_4bit_compute_dtype)
@@ -350,6 +354,9 @@ else:
     train_dataset = train_dataset.filter(lambda example: example["alpha"] in [float(script_args.alpha)])
     assert len(train_dataset) > 0
 
+train_dataset = train_dataset.map(add_ft_method)
+eval_dataset = eval_dataset.map(add_ft_method)
+
 print("dataset_num", len(train_dataset))
 print("Train Sample: ", train_dataset[0])
 print("Eval Sample: ", eval_dataset[0])
@@ -455,6 +462,33 @@ if script_args.mode == "finetune":
     print("Trainable Params after setting requires_grad: ")
     model.print_trainable_parameters()
 
+    #bind gradient hook
+    def keep_only_top_rows(grad):
+        r_half = grad.shape[0] // 3
+        out = torch.zeros_like(grad)
+        out[-r_half:, :] = grad[-r_half:, :]
+        return out
+
+    def keep_only_left_cols(grad):
+        r_half = grad.shape[0] // 3
+        out = torch.zeros_like(grad)
+        out[:, -r_half:] = grad[:, -r_half:]
+        return out
+
+    if script_args.ft_method == "rein":
+        for name, param in model.named_parameters():
+            if "lora_A" in name:
+                r_half = param.shape[0] // 2
+                print(name, param.shape)
+                # Register hook specifically on the adapter weights
+                param.data = torch.cat([param.data, param.data[r_half:, :]], dim=0)
+                param.register_hook(keep_only_top_rows)
+            if "lora_B" in name:
+                print(name, param.shape)
+                # Register hook specifically on the adapter weights
+                param.data = torch.cat([param.data, param.data[:, r_half:]], dim=1)
+                param.register_hook(keep_only_left_cols)
+
 trainer = LlamaSquadSFTTrainer(
     answer_start_tokens=answer_start_tokens,
     answer_end_tokens=answer_end_tokens,
@@ -489,6 +523,7 @@ with torch.autocast("cuda", dtype=torch.bfloat16):
     model_answer, full_response = model_generate( #get_answer
                 messages=messages,
                 alpha=1.0,
+                ft_method=script_args.ft_method,
                 pipeline=pipeline,
                 num_beams=1,
                 force_answer=True,
@@ -515,6 +550,7 @@ with torch.autocast("cuda", dtype=torch.bfloat16):
     model_answer, full_response = model_generate( #get_answer
                 messages=messages,
                 alpha=1.0,
+                ft_method=script_args.ft_method,
                 pipeline=pipeline,
                 num_beams=1,
                 force_answer=True,

@@ -63,9 +63,9 @@ class GemmaMLP(nn.Module):
         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
         self.act_fn = ACT2FN[config.hidden_act]
 
-    def forward(self, x, alpha):
+    def forward(self, x, alpha, ft_method):
         down_proj = self.down_proj(
-            self.act_fn(self.gate_proj(x, alpha)) * self.up_proj(x, alpha), alpha
+            self.act_fn(self.gate_proj(x, alpha, ft_method)) * self.up_proj(x, alpha, ft_method), alpha, ft_method
         )
         return down_proj
 
@@ -217,13 +217,14 @@ class GemmaAttention(nn.Module):
         **kwargs: Unpack[TransformersKwargs],
     ) -> tuple[torch.Tensor, torch.Tensor]:
         alpha = kwargs["alpha"]
+        ft_method = kwargs["ft_method"]
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
 
         if self.apply_lora_to == "all":
-            query_states = self.q_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
-            key_states = self.k_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
-            value_states = self.v_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
+            query_states = self.q_proj(hidden_states, alpha=alpha, ft_method=ft_method).view(hidden_shape).transpose(1, 2)
+            key_states = self.k_proj(hidden_states, alpha=alpha, ft_method=ft_method).view(hidden_shape).transpose(1, 2)
+            value_states = self.v_proj(hidden_states, alpha=alpha, ft_method=ft_method).view(hidden_shape).transpose(1, 2)
         elif self.apply_lora_to == "proj":
             query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
             key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
@@ -256,7 +257,7 @@ class GemmaAttention(nn.Module):
 
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
         if self.apply_lora_to == "all":
-            attn_output = self.o_proj(attn_output, alpha=alpha)
+            attn_output = self.o_proj(attn_output, alpha=alpha, ft_method=ft_method)
         elif self.apply_lora_to == "proj":
             attn_output = self.o_proj(attn_output)
         else:
@@ -280,6 +281,7 @@ class GemmaDecoderLayer(GradientCheckpointingLayer):
         self,
         hidden_states: torch.Tensor,
         alpha: torch.Tensor,
+        ft_method: str,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Cache] = None,
@@ -293,6 +295,7 @@ class GemmaDecoderLayer(GradientCheckpointingLayer):
         # Self Attention
         hidden_states, _ = self.self_attn(
             alpha=alpha,
+            ft_method=ft_method,
             hidden_states=hidden_states,
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -307,7 +310,7 @@ class GemmaDecoderLayer(GradientCheckpointingLayer):
         # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states, alpha=alpha)
+        hidden_states = self.mlp(hidden_states, alpha=alpha, ft_method=ft_method)
         hidden_states = residual + hidden_states
         return hidden_states
 
@@ -354,6 +357,7 @@ class GemmaModel(GemmaPreTrainedModel):
     def forward(
         self,
         alpha: torch.Tensor,
+        ft_method: str,
         input_ids: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
@@ -406,6 +410,7 @@ class GemmaModel(GemmaPreTrainedModel):
             hidden_states = decoder_layer(
                 hidden_states,
                 alpha,
+                ft_method,
                 attention_mask=causal_mask,
                 position_ids=position_ids,
                 past_key_values=past_key_values,
@@ -443,6 +448,7 @@ class GemmaForCausalLM(GemmaPreTrainedModel, GenerationMixin):
     def forward(
         self,
         alpha: torch.Tensor,
+        ft_method: str,
         input_ids: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
@@ -473,6 +479,7 @@ class GemmaForCausalLM(GemmaPreTrainedModel, GenerationMixin):
         ```"""
         outputs: BaseModelOutputWithPast = self.model(
             alpha=alpha,
+            ft_method=ft_method,
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -487,7 +494,7 @@ class GemmaForCausalLM(GemmaPreTrainedModel, GenerationMixin):
         # Only compute necessary logits, and do not upcast them to float if we are not computing the loss
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
         if self.apply_lora_to == "all":
-            logits = self.lm_head(hidden_states[:, slice_indices, :], alpha=alpha)
+            logits = self.lm_head(hidden_states[:, slice_indices, :], alpha=alpha, ft_method=ft_method)
         elif self.apply_lora_to == "proj":
             logits = self.lm_head(hidden_states[:, slice_indices, :])
         else:
