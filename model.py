@@ -229,13 +229,14 @@ class StopAfterTokens(StoppingCriteria):
         return input_ids[0][-len(self.tokens)] == self.tokens
 
 
-def model_generate(messages, alpha, pipeline, num_beams=None, force_answer=True):
+def model_generate(messages, alpha, ft_method, pipeline, num_beams=None, force_answer=True):
     stopping_criteria = None
     #for _, message in enumerate(messages):
     print("message:", messages)
     response = pipeline(
         messages,
         alpha=alpha,
+        ft_method=ft_method,
         do_sample=False,
         num_beams=num_beams,
         num_return_sequences=1,
@@ -390,6 +391,7 @@ class LlamaSquadSFTTrainer(SFTTrainer):
         answer_end_tokens = self.answer_end_tokens.to(self.model.device)
         for item in tqdm(self.eval_dataset, desc="Evaluating"):
             alpha = item["alpha"]
+            ft_method = item["ft_method"]
             input_ids = torch.tensor(item["input_ids"]).to(self.model.device)
             print("my input at evaluate: ")
             print(self.tokenizer.decode(input_ids))
@@ -435,6 +437,7 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                     output = self.model.generate(
                         input_ids=input_ids[:answer_start].unsqueeze(0),
                         alpha=alpha,
+                        ft_method=ft_method,
                         attention_mask=torch.ones_like(input_ids[:answer_start]).unsqueeze(
                             0
                         ),
