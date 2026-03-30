@@ -520,7 +520,7 @@ trainer = LlamaSquadSFTTrainer(
     callbacks=[LlamaSquadCheckpointCallback(model)],
     is_finetune = script_args.mode == "finetune",
 )
-
+"""
 print("after init trainer")
 print(trainer.train_dataset[0].keys())
 
@@ -540,7 +540,7 @@ with torch.autocast("cuda", dtype=torch.bfloat16):
                 force_answer=True,
             )
 print("Response: %s", full_response)
-
+"""
 
 if script_args.embedding_only:
     for name, param in model.named_parameters():
@@ -549,7 +549,7 @@ if script_args.embedding_only:
 
 if script_args.resume_from_checkpoint or script_args.embedding_checkpoint:
     trainer.load_embedding(script_args.embedding_checkpoint)
-
+"""
 print("before training")
 messages = "Hello, how are you?" + " Response: "
 with torch.autocast("cuda", dtype=torch.bfloat16):
@@ -568,7 +568,7 @@ with torch.autocast("cuda", dtype=torch.bfloat16):
             )
 print("Response: %s", full_response)
 trainer.evaluate()
-
+"""
 
 trainer.train(resume_from_checkpoint=script_args.resume_from_checkpoint)
 
