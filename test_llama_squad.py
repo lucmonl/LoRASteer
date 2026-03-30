@@ -87,7 +87,7 @@ pipeline = transformers.pipeline(
     tokenizer=tokenizer,
 )
 
-output_csv_file =  script_args.model_name + f"/generated_results_{script_args.alpha}_{script_args.ft_method}.csv"
+output_csv_file =  script_args.model_name + f"/generated_results_{script_args.alpha}.csv"
 with open(output_csv_file, "w") as file:
     writer = csv.writer(file)
     writer.writerow(
