@@ -61,6 +61,14 @@ transformers.logging.set_verbosity_error()
 print("model ckpt name: ", script_args.model_name)
 print("generate with alpha: ", script_args.alpha)
 print("generate with ft_method: ", script_args.ft_method)
+
+if script_args.ft_method == "free":
+    script_args.ft_method = 0
+elif script_args.ft_method == "rein":
+    script_args.ft_method = 1
+else:
+    raise ValueError("Unknown --ft_method")
+
 model, tokenizer, _ = get_model_and_tokenizer(
     model_name=script_args.model_name,
     adapter_name=script_args.adapter_name,
