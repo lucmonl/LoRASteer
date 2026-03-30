@@ -489,6 +489,10 @@ if script_args.mode == "finetune":
                 param.data = torch.cat([param.data, param.data[:, r_half:]], dim=1)
                 param.register_hook(keep_only_left_cols)
 
+print("print model parameters")
+for name, param in model.named_parameters():
+    print(name, param.shape, param.requires_grad)
+
 trainer = LlamaSquadSFTTrainer(
     answer_start_tokens=answer_start_tokens,
     answer_end_tokens=answer_end_tokens,
