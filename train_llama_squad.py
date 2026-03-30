@@ -231,6 +231,13 @@ script_args.output_dir = get_directory(script_args)
 print("Output dir:")
 print(script_args.output_dir)
 
+if script_args.ft_method == "free":
+    script_args.ft_method = 0
+elif script_args.ft_method == "rein":
+    script_args.ft_method = 1
+else:
+    raise ValueError("Unknown --ft_method")
+
 def add_ft_method(example):
     example["ft_method"] = script_args.ft_method
     return example

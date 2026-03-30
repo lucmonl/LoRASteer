@@ -281,7 +281,7 @@ class GemmaDecoderLayer(GradientCheckpointingLayer):
         self,
         hidden_states: torch.Tensor,
         alpha: torch.Tensor,
-        ft_method: str,
+        ft_method: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Cache] = None,
@@ -357,7 +357,7 @@ class GemmaModel(GemmaPreTrainedModel):
     def forward(
         self,
         alpha: torch.Tensor,
-        ft_method: str,
+        ft_method: torch.Tensor,
         input_ids: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
@@ -448,7 +448,7 @@ class GemmaForCausalLM(GemmaPreTrainedModel, GenerationMixin):
     def forward(
         self,
         alpha: torch.Tensor,
-        ft_method: str,
+        ft_method: torch.Tensor,
         input_ids: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,

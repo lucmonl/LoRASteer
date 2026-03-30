@@ -21,6 +21,7 @@ DATASETS_FOLDER = os.environ["DATA_HOME"]
 @dataclass
 class ScriptArguments:
     alpha: float
+    ft_method: str
     tokenizer_name: Optional[str] = field(
         default=None,
     )
@@ -59,7 +60,7 @@ transformers.logging.set_verbosity_error()
 
 print("model ckpt name: ", script_args.model_name)
 print("generate with alpha: ", script_args.alpha)
-
+print("generate with ft_method: ", script_args.ft_method)
 model, tokenizer, _ = get_model_and_tokenizer(
     model_name=script_args.model_name,
     adapter_name=script_args.adapter_name,
@@ -86,7 +87,7 @@ pipeline = transformers.pipeline(
     tokenizer=tokenizer,
 )
 
-output_csv_file =  script_args.model_name + f"/generated_results_{script_args.alpha}.csv"
+output_csv_file =  script_args.model_name + f"/generated_results_{script_args.alpha}_{script_args.ft_method}.csv"
 with open(output_csv_file, "w") as file:
     writer = csv.writer(file)
     writer.writerow(
@@ -121,6 +122,7 @@ with open(output_csv_file, "w") as file:
         model_answer, full_response = model_generate( #get_answer
             messages=messages,
             alpha=script_args.alpha,
+            ft_method=script_args.ft_method,
             pipeline=pipeline,
             num_beams=script_args.num_beams,
             force_answer=script_args.force_answer,
