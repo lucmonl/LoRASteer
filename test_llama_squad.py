@@ -28,7 +28,7 @@ class ScriptArguments:
     adapter_name: Optional[str] = field(
         default=None,
     )
-    quantize: Optional[bool] = field(default=False)
+    quantize: Optional[bool] = field(default=True)
     dataset: Optional[str] = field(
         default="some_data_path",
     )

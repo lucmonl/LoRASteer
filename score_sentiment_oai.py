@@ -135,7 +135,7 @@ for entries in generated_results:
             if annotated_old[kv_id]["annotation"] == "Mixed":
                 mixed_num += 1
             if annotated_old[kv_id]["annotation"] in sentiment_list:
-                print(f"Sentiment: {annotated_old[kv_id]['annotation']}\n Mixed Ratio: {mixed_num/total_num}", flush=True)
+                print(f"Sentiment: {annotated_old[kv_id]['annotation']}\n Mixed Ratio: {mixed_num/(1e-5+total_num)}", flush=True)
                 total_num += 1
                 continue 
 
@@ -146,7 +146,7 @@ for entries in generated_results:
         total_num += 1
     #print_with_line_break(f"Text: {entries["generation"]}")
     if total_num > 0:
-        print(f"Sentiment: {sentiment}\n Mixed Ratio: {mixed_num/total_num}", flush=True)
+        print(f"Sentiment: {sentiment}\n Mixed Ratio: {mixed_num/(1e-5+total_num)}", flush=True)
     else:
         print(f"Sentiment: {sentiment}", flush=True)
     annotated.append(

@@ -482,7 +482,7 @@ if script_args.mode == "finetune":
         out[:, -r_half:] = grad[:, -r_half:]
         return out
 
-    if script_args.ft_method == "rein":
+    if script_args.ft_method == 1:
         for name, param in model.named_parameters():
             if "lora_A" in name:
                 r_half = param.shape[0] // 2
