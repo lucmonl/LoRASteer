@@ -457,9 +457,9 @@ class LlamaSquadSFTTrainer(SFTTrainer):
                 )
                 #print("output ids")
                 #print(output[0, answer_start - 1 :])
-                print("model answer first 25 tokens: ")
-                print(self.tokenizer.decode(
-                        output[0, answer_start - 1 :answer_start + 24], skip_special_tokens=True
+                print("model answer first 100 tokens: ")
+                print_line_break(self.tokenizer.decode(
+                        output[0, answer_start - 1 :answer_start + 100], skip_special_tokens=True
                     ), flush=True)
                 #print("model answer: ")
                 #print(output)
