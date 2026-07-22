@@ -477,7 +477,7 @@ if script_args.mode == "finetune":
         return out
 
     def keep_only_left_cols(grad):
-        r_half = grad.shape[0] // 3
+        r_half = grad.shape[1] // 3
         out = torch.zeros_like(grad)
         out[:, -r_half:] = grad[:, -r_half:]
         return out
@@ -491,6 +491,7 @@ if script_args.mode == "finetune":
                 param.data = torch.cat([param.data, param.data[r_half:, :]], dim=0)
                 param.register_hook(keep_only_top_rows)
             if "lora_B" in name:
+                r_half = param.shape[1] // 2
                 print(name, param.shape)
                 # Register hook specifically on the adapter weights
                 param.data = torch.cat([param.data, param.data[:, r_half:]], dim=1)

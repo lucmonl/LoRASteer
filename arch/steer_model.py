@@ -45,8 +45,10 @@ class LlamaMLP(nn.Module):
         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=config.mlp_bias)
         self.act_fn = ACT2FN[config.hidden_act]
 
-    def forward(self, x, alpha):
-        down_proj = self.down_proj(self.act_fn(self.gate_proj(x, alpha)) * self.up_proj(x, alpha), alpha)
+    def forward(self, x, alpha, ft_method):
+        down_proj = self.down_proj(
+            self.act_fn(self.gate_proj(x, alpha, ft_method)) * self.up_proj(x, alpha, ft_method), alpha, ft_method
+        )
         return down_proj
 
 class LlamaAttention(nn.Module):
@@ -89,13 +91,14 @@ class LlamaAttention(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         #print("alpha in steermodel forward", kwargs["alpha"])
         alpha = kwargs["alpha"]
+        ft_method = kwargs["ft_method"]
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
 
         if self.apply_lora_to == 'all':
-            query_states = self.q_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
-            key_states = self.k_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
-            value_states = self.v_proj(hidden_states, alpha=alpha).view(hidden_shape).transpose(1, 2)
+            query_states = self.q_proj(hidden_states, alpha=alpha, ft_method=ft_method).view(hidden_shape).transpose(1, 2)
+            key_states = self.k_proj(hidden_states, alpha=alpha, ft_method=ft_method).view(hidden_shape).transpose(1, 2)
+            value_states = self.v_proj(hidden_states, alpha=alpha, ft_method=ft_method).view(hidden_shape).transpose(1, 2)
         elif self.apply_lora_to == 'proj':
             query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
             key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
@@ -128,7 +131,7 @@ class LlamaAttention(nn.Module):
 
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
         if self.apply_lora_to == 'all':
-            attn_output = self.o_proj(attn_output, alpha=alpha)
+            attn_output = self.o_proj(attn_output, alpha=alpha, ft_method=ft_method)
         elif self.apply_lora_to == 'proj':
             attn_output = self.o_proj(attn_output)
         else:
@@ -152,6 +155,7 @@ class LlamaDecoderLayer(GradientCheckpointingLayer):
         self,
         hidden_states: torch.Tensor,
         alpha: torch.Tensor,
+        ft_method: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Cache] = None,
@@ -165,6 +169,7 @@ class LlamaDecoderLayer(GradientCheckpointingLayer):
         # Self Attention
         hidden_states, _ = self.self_attn(
             alpha = alpha,
+            ft_method = ft_method,
             hidden_states=hidden_states,
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -179,7 +184,7 @@ class LlamaDecoderLayer(GradientCheckpointingLayer):
         # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states, alpha=alpha)
+        hidden_states = self.mlp(hidden_states, alpha=alpha, ft_method=ft_method)
         hidden_states = residual + hidden_states
         return hidden_states
 
@@ -207,6 +212,7 @@ class LlamaModel(LlamaPreTrainedModel):
     def forward(
         self,
         alpha: torch.Tensor,
+        ft_method: torch.Tensor,
         input_ids: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
@@ -273,6 +279,7 @@ class LlamaModel(LlamaPreTrainedModel):
             hidden_states = decoder_layer(
                 hidden_states,
                 alpha=alpha,
+                ft_method=ft_method,
                 attention_mask=causal_mask,
                 position_ids=position_ids,
                 past_key_values=past_key_values,
@@ -310,6 +317,7 @@ class LlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
     def forward(
         self,
         alpha: torch.Tensor,
+        ft_method: torch.Tensor,
         input_ids: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
@@ -343,6 +351,7 @@ class LlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
         #print("labels: ", labels)
         outputs: BaseModelOutputWithPast = self.model(
             alpha=alpha,
+            ft_method=ft_method,
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -358,7 +367,7 @@ class LlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
 
         if self.apply_lora_to == 'all':
-            logits = self.lm_head(hidden_states[:, slice_indices, :], alpha=alpha)
+            logits = self.lm_head(hidden_states[:, slice_indices, :], alpha=alpha, ft_method=ft_method)
         elif self.apply_lora_to == 'proj':
             logits = self.lm_head(hidden_states[:, slice_indices, :])
         else:
