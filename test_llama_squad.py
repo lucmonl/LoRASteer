@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Optional
 
+import torch
 import transformers
 import yaml
 from datasets import load_from_disk
@@ -75,6 +76,7 @@ model, tokenizer, _ = get_model_and_tokenizer(
     tokenizer_name=script_args.tokenizer_name,
     quantize=script_args.quantize,
     apply_lora_to=script_args.apply_lora_to,
+    ft_method=script_args.ft_method,
 )
 """
 model = PeftModel.from_pretrained(
@@ -83,6 +85,7 @@ model = PeftModel.from_pretrained(
     is_trainable=True,   # IMPORTANT
 )
 """
+
 for name, param in model.named_parameters():
     try:
         print(name, param.shape, param.norm().item())

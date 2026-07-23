@@ -11,7 +11,7 @@ import json5
 import peft.tuners.lora.layer as lora_layer
 import torch
 from huggingface_hub import hf_hub_download
-from peft import PeftModel
+from peft import PeftConfig, PeftModel
 from tqdm import tqdm
 from transformers import (
     AutoModelForCausalLM,
@@ -72,7 +72,16 @@ def get_model_and_tokenizer(
     bnb_4bit_compute_dtype: torch.dtype = torch.float16,
     bnb_4bit_use_double_quant: bool = False,
     apply_lora_to: str='tba',
+    ft_method: Optional[int] = None,
 ) -> tuple[AutoModelForCausalLM, AutoTokenizer]:
+    adapter_config = None
+    if adapter_name is None and os.path.isfile(
+        os.path.join(model_name, "adapter_config.json")
+    ):
+        adapter_name = model_name
+        adapter_config = PeftConfig.from_pretrained(adapter_name)
+        model_name = adapter_config.base_model_name_or_path
+
     if quantize:
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=load_in_4bit,
@@ -118,6 +127,9 @@ def get_model_and_tokenizer(
     model.patch_embeddings()
     #print("after LlamaSquadModel.from_pretrained")
     #print(str(adapter_name))
+
+    #### finetune code does not pass adapter_name, so skip the expansion of rank.
+    #### The expansion is hard coded in train_llama_squad.py, so it will be applied there.
     if adapter_name is not None:
         #print("adapter_name is not None")
         if hasattr(model, "new_embedding"):
@@ -132,7 +144,28 @@ def get_model_and_tokenizer(
                 .to(model.new_embedding.weight.dtype)
                 .to(model.new_embedding.weight.device)
             )
-        model = PeftModel.from_pretrained(model, adapter_name, device_map="auto")
+
+        adapter_config = adapter_config or PeftConfig.from_pretrained(adapter_name)
+
+        # Training expands each rank-r LoRA tensor to r + r // 2 after PEFT
+        # has set its scaling. Preserve that original scaling while creating
+        # layers large enough to receive the expanded checkpoint tensors.
+        if ft_method == 1:
+            original_rank = adapter_config.r
+            expanded_rank = original_rank + original_rank // 2
+            scaling_factor = expanded_rank / original_rank
+            adapter_config.r = expanded_rank
+            if adapter_config.use_rslora:
+                adapter_config.lora_alpha *= scaling_factor**0.5
+            else:
+                adapter_config.lora_alpha *= scaling_factor
+
+        model = PeftModel.from_pretrained(
+            model,
+            adapter_name,
+            config=adapter_config,
+            device_map="auto",
+        )
 
     return model, tokenizer, reasoning_tokens
 
